@@ -1,6 +1,6 @@
 import {
   Fx, JustFx, MapFx, BatchFx, NoFx, Update, TagItem,
-  Fragment, query
+  Fragment, query, cid
 } from '../mild.js'
 import {test, assert} from './test.js'
 
@@ -101,4 +101,12 @@ test('query finds element in scope', () => {
   `)
   let match = query(frag, '.foo p:nth-child(2)')
   assert(match.id === 'baz')
+})
+
+test('cid autoincrements', () => {
+  let first = cid()
+  let second = cid()
+  let third = cid()
+  assert(second === first + 1, "Autoincrements by one for each call")
+  assert(third === second + 1, "Autoincrements by one for each call")
 })

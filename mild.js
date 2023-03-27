@@ -212,5 +212,14 @@ export const list = (tag, parent, states, send) => {
   }
 }
 
+let _cid = 0
+
+// Get an auto-incrementing client-side ID value
+// IDs are NOT guaranteed to be stable across page refreshes.
+export const cid = () => {
+  _cid = _cid + 1
+  return _cid
+}
+
 export const query = (scope, selector) =>
   scope.querySelector(`:scope ${selector}`)
