@@ -1,6 +1,6 @@
 import {
   Fx, JustFx, MapFx, BatchFx, NoFx, Update, TagItem, renders,
-  Fragment, query, cid
+  Fragment, TemplateElement, query, cid
 } from '../mild.js'
 import {test, assert} from './test.js'
 
@@ -108,6 +108,23 @@ test('Fragment returns a document fragment', () => {
   assert(el.tagName === 'DIV', 'Created a div')
   assert(el.id === 'test', 'Has correct ID')
   assert(el.firstElementChild.tagName === 'H1', 'Has correct child element')
+})
+
+customElements.define(
+  'test-shadow-dom-scaffold-element',
+  class TestShadowDomScaffoldElement extends TemplateElement {
+    static template() {
+      return `<div id="test"></div>`
+    }
+  }
+)
+
+test('TemplateElement scaffolds its shadow dom from static template', () => {
+  let el = document.createElement('test-shadow-dom-scaffold-element')
+  assert(el.shadowRoot != null, 'Element has an open shadow dom')
+
+  let child = el.shadowRoot.querySelector('#test')
+  assert(child.id === 'test', 'Shadow dom is scaffolded with template')
 })
 
 test('query finds element in scope', () => {
