@@ -178,7 +178,9 @@ export class ComponentElement extends TemplateElement {
     render: render
   })
 
-  write(state, send) {}
+  write(state, send) {
+    throw Error("Not implemented")
+  }
 }
 
 // Create an ID'd item tagging function

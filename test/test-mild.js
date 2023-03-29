@@ -1,5 +1,5 @@
 import {
-  Fx, JustFx, MapFx, BatchFx, NoFx, Update, TagItem,
+  Fx, JustFx, MapFx, BatchFx, NoFx, Update, TagItem, renders,
   Fragment, query, cid
 } from '../mild.js'
 import {test, assert} from './test.js'
@@ -66,6 +66,24 @@ test('Update returns an array of state and fx', () => {
 test('Update defaults to NoFx', () => {
   let [state, fx] = Update({a: 10})
   assert(fx === NoFx, "Fx defaults to NoFx")
+})
+
+test('renders only writes new states', () => {
+  let count = 0
+  const write = (target, state, send) => {
+    count = count + 1
+    target.text = state
+  }
+  let target = {}
+  renders(write, target, 10)
+  assert(target.text === 10, "Writes new state")
+
+  renders(write, target, 10)
+  assert(count === 1, "Does not call write for same state")
+
+  renders(write, target, 20)
+  assert(target.text === 20, "Writes new state")
+  assert(count === 2, "Does not call write for same state")
 })
 
 test('TagItem returns a tagging function', () => {
