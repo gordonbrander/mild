@@ -5,7 +5,7 @@ const Time = now => ({
   value: now
 })
 
-class MildApp extends ComponentElement {
+customElements.define('mild-app', class MildApp extends ComponentElement {
   static template() {
     return `
     <style>
@@ -40,21 +40,10 @@ class MildApp extends ComponentElement {
     }
   }
 
-  #click = () => this.send(Time(Date.now()))
-
   write(state) {
     let button = this.shadowRoot.querySelector('#button')
-    button.onclick = this.#click
+    button.onclick = () => this.send(Time(Date.now()))
     let time = this.shadowRoot.querySelector('#time')
     time.textContent = state.now
   }
-}
-
-customElements.define('mild-app', MildApp)
-
-// let app = query(document, 'mild-app')
-
-// setInterval(
-//   () => app.send(Time(Date.now())),
-//   2
-// )
+})

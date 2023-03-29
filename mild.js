@@ -38,7 +38,7 @@ export const Update = (state, fx=NoFx) => [state, fx]
 // Messages get passed to update, which produces a `Change`.
 // Effects of the change will be run, and if the state has changed, a
 // render will be scheduled.
-export const Store = ({flags=null, init, update, render}) => {
+export const Store = ({target, flags=null, init, update, render}) => {
   const send = msg => {
     let [next, fx] = update(state, msg)
     if (state !== next) {
@@ -53,7 +53,7 @@ export const Store = ({flags=null, init, update, render}) => {
 
   const frame = () => {
     isFrameScheduled = false
-    render(state, send)
+    render(target, state, send)
   }
 
   const [next, fx] = init(flags)
@@ -73,7 +73,7 @@ export const Store = ({flags=null, init, update, render}) => {
 export const cursor = ({get, put, tag, update}) => (big, msg) => {
   let small = get(big)
   if (small == null) {
-    return change(big)
+    return Update(big)
   }
   let [next, fx] = update(small, msg)
   return Update(
@@ -82,7 +82,37 @@ export const cursor = ({get, put, tag, update}) => (big, msg) => {
   )
 }
 
-// Creates a cache of document fragments, memoized by template string.
+// Symbol for last-written element state
+const _state = Symbol('state')
+
+// Call a write function with element, state, and send, but
+// only if state has changed since last write.
+// Caches written state at `Symbol(state)` so it can compare states.
+export const renders = (write, el, state, send) => {
+  if (el[_state] !== state) {
+    write(el, state, send)
+    el[_state] = state
+  }
+  return el
+}
+
+// Create a rendering function with a write function
+export const rendering = write => (el, state, send) =>
+  renders(write, el, state, send)
+
+// Render
+// A general-purpose rendering function that renders a "writeable" object -
+// any object which implements a `write(state, send)` method.
+export const render = rendering((el, state, send) => {
+  el.write(state, send)
+})
+
+// Create a writeable element by its tag name, and immediately
+// render first state.
+export const create = (tag, state, send) =>
+  render(document.createElement(tag), state, send)
+
+// Creates a cache of document fxragments, memoized by template string.
 export const FragmentCache = () => {
   let cache = new Map()
 
@@ -109,23 +139,12 @@ export const FragmentCache = () => {
 // Default fragment cache
 export const Fragment = FragmentCache()
 
-// A "stateless" view element that is rendered as a function of state.
-// Only re-renders when state has changed.
-export class ViewElement extends HTMLElement {
+// An element that knows how to scaffold its shadow dom from a static template.
+// Template is cached using `Fragment` for efficient cloning.
+export class TemplateElement extends HTMLElement {
   // Static HTML template used to generate skeleton with which to
   // populate shadow DOM.
   static template() { return "" }
-
-  // Last-written state
-  #state
-
-  // Set state of element, triggering a write if state changed
-  render = (state, send) => {
-    if (this.#state !== state) {
-      this.#state = state
-      this.write(state, send)
-    }
-  }
 
   constructor() {
     super()
@@ -133,31 +152,31 @@ export class ViewElement extends HTMLElement {
     let fragment = Fragment(this.constructor.template())
     this.shadowRoot.append(fragment)
   }
-
-  // Write this view. Extend and override.
-  write(state, send) {}
 }
 
 // A stateful element that holds a store.
 // Useful for defining a single top-level root element,
 // or for defining multiple, in island architectures.
-export class ComponentElement extends ViewElement {
+export class ComponentElement extends TemplateElement {
+  static template() {
+    throw Error("Not implemented")
+  }
+
   static init() {
-    return Update({})
+    throw Error("Not implemented")
   }
 
   static update(state, msg) {
-    return Update(state)
+    throw Error("Not implemented")
   }
 
   send = Store({
-    flags: this.flags(),
+    target: this,
+    flags: this,
     init: this.constructor.init,
     update: this.constructor.update,
-    render: this.render
+    render: render
   })
-
-  flags() {}
 
   write(state, send) {}
 }
@@ -197,14 +216,13 @@ export const list = (tag, parent, states, send) => {
     for (let i = 0; i < states.length; i++) {
       let item = parent.children[i]
       let state = states[i]
-      item.render(state, forward(send, TagItem(item._id)))
+      render(item, state, forward(send, TagItem(item._id)))
     }
   } else {
     let items = []
     for (let state of states) {
-      let item = document.createElement(tag)
+      let item = create(tag, state, forward(send, TagItem(item._id)))
       item._id = state.id
-      item.render(state, forward(send, TagItem(item._id)))
       items.push(item)
     }
     // Replace any remaining current nodes with the children array we've built.
@@ -212,6 +230,7 @@ export const list = (tag, parent, states, send) => {
   }
 }
 
+// The global auto-incrementing client ID state.
 let _cid = 0
 
 // Get an auto-incrementing client-side ID value
@@ -221,5 +240,6 @@ export const cid = () => {
   return _cid
 }
 
+// Query selector within scope.
 export const query = (scope, selector) =>
   scope.querySelector(`:scope ${selector}`)

@@ -19,6 +19,10 @@ Outline:
 
 ## Views
 
+Views render their state directly.
+
+You might think of a view as similar to a virtual DOM patch operation, but you're hand-authoring the patching logic in write. Instead of diffing every element in the tree, your write function targets exactly the elements that need to change. This makes views extremely efficient.
+
 ## Components and stores
 
 ## Effects
