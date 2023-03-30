@@ -135,7 +135,7 @@ test('query finds element in scope', () => {
   </div>
   `)
   let match = query(frag, '.foo p:nth-child(2)')
-  assert(match.id === 'baz')
+  assert(match.id === 'baz', 'query finds correct element')
 })
 
 test('cid autoincrements', () => {
