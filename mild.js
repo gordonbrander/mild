@@ -85,8 +85,8 @@ export const cursor = ({get, put, tag, update}) => (big, msg) => {
 // Symbol for last-written element state
 const _state = Symbol('state')
 
-// Call a write function with element, state, and send, but
-// only if state has changed since last write.
+// Call a write function with element, state, and send.
+// Only writes if state has changed since last write.
 // Caches written state at `Symbol(state)` so it can compare states.
 export const renders = (write, el, state, send) => {
   if (el[_state] !== state) {
@@ -102,7 +102,7 @@ export const rendering = write => (el, state, send) =>
 
 // Render
 // A general-purpose rendering function that renders a "writeable" object -
-// any object which implements a `write(state, send)` method.
+// any object which implements a `.write(state, send)` method.
 export const render = rendering((el, state, send) => {
   el.write(state, send)
 })
@@ -190,10 +190,11 @@ const isListMatchingById = (items, states) => {
   if (items.length !== states.length) {
     return false
   }
+  let _id = Symbol.for('id')
   for (let i = 0; i < states.length; i++) {
     let item = items[i]
     let state = states[i]
-    if (item._id !== state.id) {
+    if (item[_id] !== state.id) {
       return false
     }
   }
@@ -212,19 +213,20 @@ const isListMatchingById = (items, states) => {
 // - States must have an `id` property.
 // - Element must have a `render` method.
 export const list = (tag, parent, states, send) => {
+  let _id = Symbol.for('id')
   // If all state IDs match all list IDs, just loop through and write.
   // Otherwise, rebuild the list.
   if (isListMatchingById(parent.children, states)) {
     for (let i = 0; i < states.length; i++) {
       let item = parent.children[i]
       let state = states[i]
-      render(item, state, forward(send, TagItem(item._id)))
+      render(item, state, forward(send, TagItem(item[_id])))
     }
   } else {
     let items = []
     for (let state of states) {
-      let item = create(tag, state, forward(send, TagItem(item._id)))
-      item._id = state.id
+      let item = create(tag, state, forward(send, TagItem(item[_id])))
+      item[_id] = state.id
       items.push(item)
     }
     // Replace any remaining current nodes with the children array we've built.
