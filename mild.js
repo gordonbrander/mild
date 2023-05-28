@@ -29,43 +29,50 @@ export const MapFx = (fx, tag) => send => {
 // Create a state transaction with state and effect.
 export const Update = (state, fx=NoFx) => [state, fx]
 
-// A store that shedules an animation frame when a state change happens.
+// A store that shedules a write when a state change happens.
 // 
-// Renders are batched, so you get max one write per animation frame, even
+// Renders are batched, so you get max one write per frame, even
 // if state is updated multiple times per frame.
 //
 // Returns a `send` function which you can invoke with messages.
 // Messages get passed to update, which produces a `Change`.
 // Effects of the change will be run, and if the state has changed, a
 // render will be scheduled.
-export const Store = ({target, flags=null, init, update, render}) => {
-  const send = msg => {
-    let [next, fx] = update(state, msg)
-    if (state !== next) {
-      state = next
-      if (!isFrameScheduled) {
-        isFrameScheduled = true
-        requestAnimationFrame(frame)
-      }
+export class Store {
+  #isRenderScheduled = false
+  #state
+  #update
+  #write
+
+  constructor({flags=null, init, update, write}) {
+    this.#update = update
+    this.#write = write
+
+    const [next, fx] = init(flags)
+    this.#state = next
+    fx(this.send)
+
+    this.#render()
+  }
+
+  async #render() {
+    if (this.#isRenderScheduled) {
+      return
     }
-    fx(send)
+    this.#isRenderScheduled = true
+    await Promise.resolve()
+    this.#write(this.#state, this.send)
+    this.#isRenderScheduled = false
   }
 
-  const frame = () => {
-    isFrameScheduled = false
-    render(target, state, send)
+  send = msg => {
+    let [next, fx] = this.#update(this.#state, msg)
+    if (this.#state !== next) {
+      this.#state = next
+      this.#render()
+    }
+    fx(this.send)
   }
-
-  const [next, fx] = init(flags)
-
-  let isFrameScheduled = false
-  let state = next
-  fx(send)
-
-  // Issue first render next tick
-  Promise.resolve().then(frame)
-
-  return send
 }
 
 // Create an update function for a small part of a state.
@@ -170,13 +177,18 @@ export class ComponentElement extends TemplateElement {
     throw Error("Not implemented")
   }
 
-  send = Store({
-    target: this,
+  #write = (state, send) => {
+    this.write(state, send)
+  }
+
+  #store = new Store({
     flags: this,
     init: this.constructor.init,
     update: this.constructor.update,
-    render: render
+    write: this.#write
   })
+
+  send = this.#store.send
 
   write(state, send) {
     throw Error("Not implemented")
@@ -247,3 +259,9 @@ export const cid = () => {
 // Query selector within scope.
 export const query = (scope, selector) =>
   scope.querySelector(`:scope ${selector}`)
+
+// Shortcut for defining a custom element
+const define = (tag, defn) => {
+  customElements.define(tag, defn)
+  return defn
+}
