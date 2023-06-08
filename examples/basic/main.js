@@ -1,4 +1,4 @@
-import {ComponentElement, JustFx, Update, query} from '../../mild.js'
+import {ComponentElement, template} from '../../mild.js'
 
 const Time = now => ({
   type: 'time',
@@ -6,43 +6,53 @@ const Time = now => ({
 })
 
 customElements.define('mild-app', class MildApp extends ComponentElement {
-  static template() {
-    return `
-    <style>
-    :host {
-      display: block;
-    }
-    #time {
-      font-family: monospace;
-      font-size: 24px;
-      font-weight: bold;
-    }
-    </style>
-    <div id="root">
-      <div id="time"></div>
-      <button id="button">Click me</button>
-    </div>
-    `
+  static template = template(`
+  <style>
+  :host {
+    display: block;
   }
+  #time {
+    font-family: monospace;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  </style>
+  <div id="root">
+    <div id="time"></div>
+    <button id="button">Click me</button>
+  </div>
+  `)
 
   static init() {
-    return Update(
+    return [
       {now: 0},
-      JustFx(Time(Date.now()))
-    )
+      Time(Date.now())
+    ]
   }
 
   static update(state, msg) {
     if (msg.type === "time") {
-      return Update({...state, now: msg.value})
+      return [
+        {...state, now: msg.value},
+        null
+      ]
     } else {
-      return Update(state)
+      return [state, null]
     }
   }
 
+  static onEvent(event) {
+    if (event.type === 'click' && event.target.id === 'button') {
+      event.preventDefault()
+      return Time(Date.now())
+    }
+  }
+
+  connectedCallback() {
+    this.shadowRoot.addEventListener('click', this.store)
+  }
+
   write(state) {
-    let button = this.shadowRoot.querySelector('#button')
-    button.onclick = () => this.send(Time(Date.now()))
     let time = this.shadowRoot.querySelector('#time')
     time.textContent = state.now
   }
