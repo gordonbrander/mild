@@ -1,46 +1,370 @@
+import {test, Runner, assert, fail, wait} from './test.js'
 import {
-  ViewElement,
-  template,
-  cid
+  rendering,
+  insertElementAt,
+  list,
+  view,
+  cloning,
+  h,
+  cid,
+  next,
+  prop
 } from '../mild.js'
-import {test, assert} from './test.js'
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const insertAtIndex = (array, i, item) => {
+  array.splice(i, 0, item)
+}
 
-test('template returns a template', () => {
-  let html = template(`
-  <div id="test">
-    <h1 id="title">Success</h1>
-  </div>
-  `)
-  
-  assert(html instanceof HTMLTemplateElement, 'Returns a HTMLTemplateElement')
-  let frag = html.content.cloneNode(true)
-  let el = frag.firstElementChild
-  assert(el.tagName === 'DIV', 'Created a div')
-  assert(el.id === 'test', 'Has correct ID')
-  assert(el.firstElementChild.tagName === 'H1', 'Has correct child element')
+const removeAtIndex = (array, i) => {
+  let removed = array.splice(i, 1)
+  return removed[0]
+}
+
+let runner = new Runner()
+
+runner.suite('cloning', async () => {
+  const create = cloning(() => {
+    let element = document.createElement('input')
+    element.type = 'text'
+    element.className = 'input'
+    return element
+  })
+
+  await test('it returns a new node', () => {
+    let a = create()
+    let b = create()
+
+    assert(a !== b && a.isEqualNode(b), "node is cloned")
+  })
 })
 
-customElements.define(
-  'test-shadow-dom-scaffold-element',
-  class TestShadowDomScaffoldElement extends ViewElement {
-    static template = template(`<div id="test"></div>`)
+runner.suite('rendering', async () => {
+  await test('it only runs write when state has changed', async () => {
+    let renderText = rendering((el, text, send) => {
+      el.innerHTML = ''
+      el.append(text)
+    })
+
+    let observer = new MutationObserver((mutationList, observer) => {
+      let added = new Set(
+        mutationList.flatMap(mutation => Array.from(mutation.addedNodes))
+      )
+      assert(
+        added.size === 2,
+        'It only runs when state has changed'
+      )
+    })
+
+    let element = document.createElement('div')
+    observer.observe(element, {childList: true})
+
+    renderText(element, "Hello world")
+    renderText(element, "Hello world")
+    renderText(element, "Hello world")
+    renderText(element, "Hello me")
+
+    await wait(1)
+
+    observer.disconnect()
+  })
+})
+
+runner.suite('insertElementAt', async () => {
+  const createParent = () => {
+    let list = document.createElement('ul')
+    list.className = 'list'
+    return list
   }
-)
 
-test('TemplateElement scaffolds its shadow dom from static template', () => {
-  let el = document.createElement('test-shadow-dom-scaffold-element')
-  assert(el.shadowRoot != null, 'Element has an open shadow dom')
+  const createItem = () => {
+    let item = document.createElement('li')
+    item.className = 'item'
+    return item
+  }
 
-  let child = el.shadowRoot.querySelector('#test')
-  assert(child.id === 'test', 'Shadow dom is scaffolded with template')
+  await test('it appends when there are no children', () => {
+    let parent = createParent()
+    let item = createItem()
+    insertElementAt(parent, item, 0)
+
+    assert(parent.firstElementChild === item, "item is appended")
+  })
+
+  await test('it appends when index is out of range', () => {
+    let parent = createParent()
+    let item = createItem()
+    insertElementAt(parent, item, 1000)
+
+    assert(parent.firstElementChild === item, "item is appended")
+  })
+
+  await test('it does not move element when element is already at index', async () => {
+    let parent = createParent()
+
+    let item = createItem()
+    insertElementAt(parent, item, 0)
+
+    let observer = new MutationObserver((mutationList, observer) => {
+      fail("Child list was mutated, but should not have been")
+    })
+
+    observer.observe(parent, {childList: true})
+    insertElementAt(parent, item, 0)
+    insertElementAt(parent, item, 0)
+    insertElementAt(parent, item, 0)
+    await wait(1)
+    observer.disconnect()
+  })
 })
 
-test('cid autoincrements', () => {
-  let first = cid()
-  let second = cid()
-  let third = cid()
-  assert(first !== second, "Generates fresh cid")
-  assert(second !== third, "Generates fresh cid")
+runner.suite('list', async () => {
+  const send = () => {}
+
+  const item = view({
+    create: () => {
+      let item = document.createElement('li')
+      item.className = 'item'
+      return item
+    },
+    render: (item, state, send) => {
+      item.innerText = state.text
+    }
+  })
+
+  const model = ({text}) => ({id: cid(), text})
+
+  const init = (n=100) => {
+    let array = []
+    for (var i = 0; i < n; i++) {
+      array.push(
+        model({text: `Item ${i}`})
+      )
+    }
+    return array
+  }
+
+  const createParent = () => {
+    let list = document.createElement('ul')
+    list.className = 'list'
+    return list
+  }
+
+  await test('it appends children on empty element', () => {
+    let states = init(10)
+    let parent = createParent()
+    list(item, parent, states, send)
+    assert(parent.children.length === 10, "appends children")
+  })
+
+  await test('it removes elements', () => {
+    let states = init(10)
+    let parent = createParent()
+    list(item, parent, states)
+
+    let copy = [...states]
+    copy.pop()
+    copy.pop()
+
+    list(item, parent, copy, send)
+    assert(parent.children.length === 8, "removes children")
+  })
+
+  await test('it supports inserting and removing elements anywhere', () => {
+    let states = init(10)
+    let parent = createParent()
+    list(item, parent, states, send)
+
+    let previousChildren = Array.from(parent.children)
+
+    let copy = [...states]
+    insertAtIndex(copy, 4, model({text: 'Added item'}))
+    insertAtIndex(copy, 7, model({text: 'Added item'}))
+    removeAtIndex(copy, 9)
+
+    list(item, parent, copy, send)
+    assert(parent.children.length === 11, "correct number of children")
+    assert(parent.children[5] === previousChildren[4], "Other elements don't get replaced")
+  })
+
+  await test('it avoids reparenting elements that remain in same relative order', async () => {
+    let states = init(5)
+    let parent = createParent()
+    list(item, parent, states, send)
+
+    let copy = [...states]
+    removeAtIndex(copy, 0)
+    insertAtIndex(copy, 0, model({text: 'Added item'}))
+    insertAtIndex(copy, 0, model({text: 'Added item'}))
+    insertAtIndex(copy, 3, model({text: 'Added item'}))
+    insertAtIndex(copy, 3, model({text: 'Added item'}))
+    insertAtIndex(copy, 4, model({text: 'Added item'}))
+
+    let referenceElement1 = parent.children[1]
+    let referenceElement2 = parent.children[2]
+    let referenceElement4 = parent.children[4]
+
+    let observer = new MutationObserver((mutationList, observer) => {
+      let added = new Set(
+        mutationList.flatMap(mutation => Array.from(mutation.addedNodes))
+      )
+      let removed = new Set(
+        mutationList.flatMap(mutation => Array.from(mutation.removedNodes))
+      )
+
+      assert(
+        added.size === 5,
+        'It performs only the additions necessary'
+      )
+
+      assert(
+        removed.size === 1,
+        'It performs only the removals necessary'
+      )
+
+      assert(
+        !added.has(referenceElement1),
+        'Reference element is not moved'
+      )
+      assert(
+        !removed.has(referenceElement1),
+        'Reference element is not moved'
+      )
+      assert(
+        !added.has(referenceElement2),
+        'Reference element is not moved'
+      )
+      assert(
+        !removed.has(referenceElement2),
+        'Reference element is not moved'
+      )
+      assert(
+        !added.has(referenceElement4),
+        'Reference element is not moved'
+      )
+      assert(
+        !removed.has(referenceElement4),
+        'Reference element is not moved'
+      )
+    })
+
+    observer.observe(parent, {childList: true})
+    list(item, parent, copy, send)
+
+    assert(parent.children.length === 9, "list is correct length after rendering")
+
+    await wait(1)
+
+    observer.disconnect()
+  })
+
+  await test('it reparents elements that change order', async () => {
+    let states = init(3)
+    let parent = createParent()
+    list(item, parent, states, send)
+
+    let copy = [...states]
+    let last = copy.pop()
+    copy.unshift(last)
+
+    let referenceElement0 = parent.children[0]
+
+    let observer = new MutationObserver((mutationList, observer) => {
+      let added = new Set(
+        mutationList.flatMap(mutation => Array.from(mutation.addedNodes))
+      )
+      let removed = new Set(
+        mutationList.flatMap(mutation => Array.from(mutation.removedNodes))
+      )
+      assert(
+        !added.has(referenceElement0),
+        'Reference element is not moved'
+      )
+      assert(
+        !removed.has(referenceElement0),
+        'Reference element is not moved'
+      )
+    })
+
+    observer.observe(parent, {childList: true})
+    list(item, parent, copy, send)
+
+    assert(parent.children.length === 3, "list is correct length after rendering")
+
+    await wait(1)
+
+    observer.disconnect()
+  })
 })
+
+runner.suite('h', async () => {
+  await test('it constructs the element', () => {
+    let div = h(
+      'div',
+      {
+        id: 'foo',
+        className: 'foo bar',
+        hidden: true,
+        style: {
+          color: 'red'
+        }
+      },
+      h(
+        'p',
+        {
+          id: 'bar',
+          dataset: {
+            key: 'bar'
+          }
+        },
+        'Hello world'
+      )
+    )
+
+    assert(div.nodeName === 'DIV')
+    assert(div.id === 'foo')
+    assert(div.className === 'foo bar')
+    assert(div.hidden === true)
+    assert(div.style.color === 'red')
+
+    let p = div.firstElementChild
+    assert(p.nodeName === 'P')
+    assert(p.id === 'bar')
+    assert(p.dataset.key === 'bar')
+    assert(p.innerText === 'Hello world')
+  })
+})
+
+runner.suite('next', async () => {
+  await test('it returns state and effects', () => {
+    let state = {}
+    let effects = []
+    let update = next(state, effects)
+
+    assert(update.state === state)
+    assert(update.effects === effects)
+  })
+})
+
+runner.suite('prop', async () => {
+  await test('it only sets property if value has changed', async () => {
+    let mutations = 0
+    let observer = new MutationObserver((mutationList, observer) => {
+      mutations = mutations + 1
+    })
+
+    let element = document.createElement('div')
+    element.id = 'foo'
+    element.dataset.key = 'foo'
+    observer.observe(element, {attributes: true})
+    prop(element, 'id', 'bar')
+    prop(element, 'id', 'bar')
+    prop(element.dataset, 'key', 'foo')
+
+    await wait(1)
+    observer.disconnect()
+
+    assert(mutations === 1, 'prop only mutated when value changed')
+  })
+})
+
+runner.run()
