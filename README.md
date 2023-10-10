@@ -26,7 +26,7 @@ import {
   h,
   $,
   prop
-} from '../../mild.js'
+} from './mild.js'
 
 // All state changes are expressed in terms of actions sent to a store
 const action = {}
@@ -56,16 +56,14 @@ const appView = view({
   }
 })
 
-const appModel = ({count}) => ({count})
-
 // Create initial state transaction
-const init = () => next(appModel({count: 0}))
+const init = () => next({count: 0})
 
 // Given previous state and an action, creates new state transactions.
 const update = (state, action) => {
   switch (action.type) {
   case 'increment':
-    return next(appModel({...state, count: state.count + 1}))
+    return next({...state, count: state.count + 1})
   default:
     console.warn("Unhandled action type", action)
     return next(state)
