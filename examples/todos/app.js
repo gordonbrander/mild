@@ -10,7 +10,7 @@ import {
   h,
   $,
   prop
-} from '../mild.js'
+} from '../../mild.js'
 
 const freeze = Object.freeze
 

@@ -14,6 +14,73 @@ Mild is a little library for just building web apps. You can use it to build a s
 
 That's it.
 
+## A quick example
+
+Here's a simple app that increments a counter whenever you click a button.
+
+```js
+import {
+  Store,
+  next,
+  view,
+  h,
+  $,
+  prop
+} from '../../mild.js'
+
+// All state changes are expressed in terms of actions sent to a store
+const action = {}
+action.increment = {type: 'increment'}
+
+// A view describes how to create and update (render) an element.
+const appView = view({
+  create: (state, send) => h(
+    'div',
+    {className: 'container'},
+    h(
+      'div',
+      {className: 'text'}
+    ),
+    h(
+      'button',
+      {
+        className: 'button',
+        onclick: event => send(action.increment)
+      },
+      'Click to increment'
+    )
+  ),
+  render: (containerEl, state, send) => {
+    let textEl = $(containerEl, '.text')
+    prop(textEl, 'innerText', state.count)
+  }
+})
+
+const appModel = ({count}) => ({count})
+
+// Create initial state transaction
+const init = () => next(appModel({count: 0}))
+
+// Given previous state and an action, creates new state transactions.
+const update = (state, action) => {
+  switch (action.type) {
+  case 'increment':
+    return next(appModel({...state, count: state.count + 1}))
+  default:
+    console.warn("Unhandled action type", action)
+    return next(state)
+  }
+}
+
+// Initialize store
+let store = new Store({
+  host: document.querySelector('body'),
+  view: appView,
+  init,
+  update
+})
+```
+
 ## `view()`
 
 Mild views are described with two functions, one to create the element, and the other to update it. Like this:
@@ -74,3 +141,5 @@ Store takes a configuration object with the following keys:
 - `view` - a view (an object with `create()` and `render()` functions)
 - `init` - a function that returns an initial transaction object
 - `update` - a function that rturn
+
+To send messages to the store you can use the `Store.send()` method. Store also sends a `send()` function down to view creation and rendering functions. This is often used to bind to event listeners and send messages up to the store.
