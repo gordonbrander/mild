@@ -138,7 +138,7 @@ let store = new Store({host, view, init, update})
 Store takes a configuration object with the following keys:
 
 - `host` - an element on which to mount the root view.
-- `view()` - a view (an object with `create()` and `render()` functions)
+- `view` - a view (an object with `create()` and `render()` functions)
 - `init()` - a function that returns an initial state transaction
 - `update(state, action)` - a function that receives the current state, and an action, and returns a transaction for the next state
 
