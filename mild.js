@@ -7,15 +7,6 @@
  */
 
 /**
- * A state transaction containing next state and any effects.
- * @template State
- * @template Action
- * @typedef {object} Transaction
- * @property {State} state - the next state
- * @property {Array<Effect<Action>>} effects - effects to send to the store
- */
-
-/**
  * A send function is a callback to which you can send messages
  * @template Action
  * @typedef {(action: Action) => void} Send
@@ -45,13 +36,22 @@
  */
 
 /**
+ * A state transaction containing next state and any effects.
+ * @template State
+ * @template Action
+ * @typedef {object} Transaction
+ * @property {State} state - the next state
+ * @property {Array<Effect<Action>>} effects - effects to send to the store
+ */
+
+/**
  * Create a transaction object.
  * A transaction is used to represent a change in state.
  * @template State
  * @template Action
  * @param {State} state - the next state
- * @param {Array<Effect<Action>>} effects - an array of effects producing actions to send to the store.
- * @returns {Transaction<State, Action>}
+ * @param {Array<Effect<Action>>} effects - an array of effects that produce actions to send to the store.
+ * @returns {Transaction<State, Action>} - the transaction for next state
  */
 export const next = (state, effects=[]) => ({state, effects})
 
@@ -60,21 +60,6 @@ export const next = (state, effects=[]) => ({state, effects})
  * @returns {Promise<number>}
  */
 const animationFrame = () => new Promise(requestAnimationFrame)
-
-/**
- * An initialization function that produces an initial state transaction.
- * @template State
- * @template Action
- * @typedef {() => Transaction<State, Action>} Init
- */
-
-/**
- * An update function that produces a new state transaction
- * given a previous state and action.
- * @template State
- * @template Action
- * @typedef {(state: State, action: Action) => Transaction<State, Action>} Update
- */
 
 /**
   * A store who's state is updated via actions.
@@ -92,8 +77,8 @@ export class Store {
    * @param {object} options
    * @param {HTMLElement} options.host - the host element on which to mount the store-managed element
    * @param {View<State, Action>} options.view - the view to render
-   * @param {Init<State, Action>} options.init - a function to initialize the store
-   * @param {Update<State, Action>} options.update - an update function for producing transactions
+   * @param {() => Transaction<State, Action>} options.init - a function to initialize the store
+   * @param {(state: State, action: Action) => Transaction<State, Action>} options.update - an update function for producing transactions
    */
   constructor({host, view, init, update}) {
     let {create, render} = view
@@ -207,11 +192,11 @@ export const cursor = ({
 /**
  * Forward messages sent to a send function.
  * Creates a new send function that tags actions before sending them.
- * @template Action
- * @template ChildAction
- * @param {Send<Action>} send - a send function to forward messages to
- * @param {(action: ChildAction) => Action} tag - a function that maps child actions to actions
- * @returns {Send<ChildAction>}
+ * @template OuterAction
+ * @template InnerAction
+ * @param {Send<OuterAction>} send - a send function to forward messages to
+ * @param {(action: InnerAction) => OuterAction} tag - a function that maps child actions to actions
+ * @returns {Send<InnerAction>}
  */
 export const forward = (send, tag) => action => {
   send(tag(action))
@@ -284,14 +269,6 @@ export const insertElementAt = (parent, element, index) => {
 }
 
 /**
- * @template Action
- * @typedef {object} ItemAction
- * @property {string} type - the action type ("item")
- * @property {string} id - the ID of the item
- * @property {Action} action - the action to wrap
- */
-
-/**
  * Get the id property from an object
  * @param {object} object
  * @returns {*} the ID property
@@ -301,48 +278,47 @@ export const getId = object => object.id
 /**
  * An ID tagging function that doesn't do any tagging... it just returns the
  * action unchanged. This is the default tagging function for `item()`.
- * @template Action
+ * NOTE: we type action as `any` because JSDoc TypeScript is unable to
+ * infer that a generic `Action` in this function is the same `Action` in
+ * `item()`. Howevever, at the call site, `noTagging()` does end up having
+ * its type specialized to `ItemView.Action` and `ItemView.TaggedAction`.
  * @param {string} id - the id of the item
- * @returns {(action: Action) => Action}
+ * @returns {(action: *) => *}
  */
 const noTagging = id => action => action
 
 /**
  * A special view with extra functions for identifying and tagging actions
  * within dynamic lists.
- * @template ItemState
- * @template ItemAction
+ * @template State
  * @template Action
- * @typedef {View<ItemState, ItemAction> & {id: (state: ItemState) => string, tagging: (id: string) => (action: Action) => ItemAction}} ItemView
+ * @template TaggedAction
+ * @typedef {View<State, Action> & {id: (state: State) => string, tagging: (id: string) => (action: Action) => TaggedAction}} ItemView
  */
 
 /**
  * Make an ordinary view into an item view suitable for rendering in
  * dynamic lists.
  *
- * @template ItemState
- * @template ItemAction
+ * @template State
  * @template Action
+ * @template TaggedAction
  * @param {object} itemlike
- * @param {Creating<ItemState, ItemAction>} itemlike.create - a creating function
- * @param {Rendering<ItemState, ItemAction>} itemlike.render - a rendering function
- * @param {(state: ItemState) => string} [itemlike.id] - get a unique ID from the state
- * @param {(id: string) => (action: ItemAction) => Action} [itemlike.tagging] - an ID tagging function
- * @returns {ItemView<ItemState, ItemAction, Action>}
+ * @param {Creating<State, Action>} itemlike.create - a creating function
+ * @param {Rendering<State, Action>} itemlike.render - a rendering function
+ * @param {(state: State) => string} [itemlike.id] - get a unique ID from the state
+ * @param {(id: string) => (action: Action) => TaggedAction} [itemlike.tagging] - a function that takes an ID and produces an action tagging function
+ * @returns {ItemView<State, Action, TaggedAction>}
  */
 export const item = ({
   create,
   render,
   id=getId,
-  // TS seems unable to infer that `ItemAction` is `Action`
-  // @ts-ignore
   tagging=noTagging
 }) => ({
   create,
   render,
   id,
-  // TS seems unable to infer that `ItemAction` is `Action`
-  // @ts-ignore
   tagging
 })
 
@@ -364,14 +340,16 @@ const _id = Symbol('id')
  *   (focus and selection are preserved).
  * - If item has been re-ordered relative to siblings, it is moved
  *   into its new location. (This will reset focus and selection).
- * @template State
+ * @template ItemState
+ * @template ItemAction
  * @template Action
  * @param {object} itemlike - an itemlike view, which may or may not have an `id()` function. Defaults to reading the id property of states.
- * @param {Creating<State, Action>} itemlike.create - a function to create the element
- * @param {Rendering<State, Action>} itemlike.render - a function to render the element
- * @param {(state: State) => string} [itemlike.id] - a function to get an ID from the state
+ * @param {Creating<ItemState, ItemAction>} itemlike.create - a function to create the element
+ * @param {Rendering<ItemState, ItemAction>} itemlike.render - a function to render the element
+ * @param {(state: ItemState) => string} [itemlike.id] - a function to get an ID from the state
+ * @param {(id: string) => (action: ItemAction) => Action} [itemlike.tagging] - a function that takes an ID and produces an action tagging function
  * @param {HTMLElement} parent - the parent element to render children to
- * @param {Array<State>} states - an array of states corresponding to children. Each state must have an ID, as defined by `itemlike.id()`. By default, this is `state.id`.
+ * @param {Array<ItemState>} states - an array of states corresponding to children. Each state must have an ID, as defined by `itemlike.id()`. By default, this is `state.id`.
  * @param {Send<Action>} send - an address callback to send messages to
  */
 export const list = (
@@ -409,8 +387,7 @@ export const list = (
   for (var i = 0; i < states.length; i++) {
     let state = states[i]
     let child = childMap.get(id(state))
-    let tag = tagging(id(state))
-    let address = forward(send, tag)
+    let address = forward(send, tagging(id(state)))
     if (child == null) {
       let child = create(state, address)
       child[_id] = id(state)
