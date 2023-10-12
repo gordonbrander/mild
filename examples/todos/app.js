@@ -44,64 +44,80 @@ action.filterCompleted = action.filter(Filter.completed)
 export const css = style => cloning(() => h('style', {}, style))
 
 const checkboxView = view({
-  create: (isChecked, send) => h(
-    'input',
-    {
-      type: 'checkbox',
-      className: 'todo-check'
-    }
-  ),
+  tag: 'input',
+  setup: (el, isChecked, send) => {
+    el.type = 'checkbox'
+    el.className = 'todo-check'
+  },
   render: (el, isChecked, send) => {
     prop(el, 'checked', isChecked)
   }
 })
 
+const todoTitleView = view({
+  setup: (el, title, send) => {
+    el.className = 'todo-title'
+  },
+  render: (el, title, send) => {
+    el.innerText = title
+  }
+})
+
 const todoView = view({
-  create: (state, send) => h(
-    'div',
-    {
-      className: 'todo-item',
-      onchange: event => {
-        if (event.target.classList.contains('todo-check')) {
-          send(action.checkTodo(state.id, event.target.checked))
-        }
+  setup: (el, state, send) => {
+    el.className = 'todo-item'
+    el.onchange = event => {
+      if (event.target.classList.contains('todo-check')) {
+        send(action.checkTodo(state.id, event.target.checked))
       }
-    },
-    checkboxView.create(state.isChecked, send),
-    h('div', {className: 'todo-title'})
-  ),
-  render: (div, state, send) => {
-    div.classList.toggle('checked', state.isChecked)
+    }
+    el.append(checkboxView.create(state.isChecked, send))
+    el.append(todoTitleView.create(state.title))
+  },
+  render: (el, state, send) => {
+    el.classList.toggle('checked', state.isChecked)
 
-    let titleEl = $(div, '.todo-title')
-    prop(titleEl, 'innerText', state.title)
+    let titleEl = $(el, '.todo-title')
+    todoTitleView.render(titleEl, state.title, send)
 
-    let checkboxEl = $(div, '.todo-check')
+    let checkboxEl = $(el, '.todo-check')
     checkboxView.render(checkboxEl, state.isChecked, send)
   }
 })
 
 const todoInputView = view({
-  create: (value, send) => h(
-    'input',
-    {
-      type: 'text',
-      className: 'todo-input',
-      placeholder: 'What needs to be done?',
-      oninput: event => send(action.setInput(event.target.value)),
-      onkeyup: event => {
-        if (event.keyCode === 13) {
-          send(action.submitTodo(event.target.value))
-        }
+  setup: (input, state, send) => {
+    input.type = 'text'
+    input.className = 'todo-input'
+    input.placeholder = 'What needs to be done?'
+    input.oninput = event => send(action.setInput(event.target.value))
+    input.onkeyup = event => {
+      if (event.key === 'Enter') {
+        send(action.submitTodo(event.target.value))
       }
     }
-  ),
+  },
   render: (input, value, send) => {
     prop(input, 'value', value)
   }
 })
 
+const filterButtonView = view({
+  tag: 'button',
+  setup: (element, state, send) => {
+    element.classList.add('button', 'todo-filter')
+    element.onclick = event => send(action.filterAll)
+  },
+  render: (element, state, send) => {
+    element.classList.toggle(state.className, true)
+    prop(element, 'innerText', state.title)
+  }
+})
+
 const filterView = view({
+  setup: (element, state, send) => {
+    element.append(filterButtonView.create(state, send))
+  },
   create: (filter, send) => h(
     'div',
     {

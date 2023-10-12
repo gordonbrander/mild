@@ -7,15 +7,6 @@
  */
 
 /**
- * A state transaction containing next state and any effects.
- * @template State
- * @template Action
- * @typedef {object} Transaction
- * @property {State} state - the next state
- * @property {Array<Effect<Action>>} effects - effects to send to the store
- */
-
-/**
  * A send function is a callback to which you can send messages
  * @template Action
  * @typedef {(action: Action) => void} Send
@@ -45,6 +36,15 @@
  */
 
 /**
+ * A state transaction containing next state and any effects.
+ * @template State
+ * @template Action
+ * @typedef {object} Transaction
+ * @property {State} state - the next state
+ * @property {Array<Effect<Action>>} effects - effects to send to the store
+ */
+
+/**
  * Create a transaction object.
  * A transaction is used to represent a change in state.
  * @template State
@@ -62,21 +62,6 @@ export const next = (state, effects=[]) => ({state, effects})
 const animationFrame = () => new Promise(requestAnimationFrame)
 
 /**
- * An initialization function that produces an initial state transaction.
- * @template State
- * @template Action
- * @typedef {() => Transaction<State, Action>} Init
- */
-
-/**
- * An update function that produces a new state transaction
- * given a previous state and action.
- * @template State
- * @template Action
- * @typedef {(state: State, action: Action) => Transaction<State, Action>} Update
- */
-
-/**
   * A store who's state is updated via actions.
   * @template State
   * @template Action
@@ -92,8 +77,8 @@ export class Store {
    * @param {object} options
    * @param {HTMLElement} options.host - the host element on which to mount the store-managed element
    * @param {View<State, Action>} options.view - the view to render
-   * @param {Init<State, Action>} options.init - a function to initialize the store
-   * @param {Update<State, Action>} options.update - an update function for producing transactions
+   * @param {() => Transaction<State, Action>} options.init - a function to initialize the store
+   * @param {(state: State, action: Action) => Transaction<State, Action>} options.update - an update function for producing transactions
    */
   constructor({host, view, init, update}) {
     let {create, render} = view
@@ -108,7 +93,7 @@ export class Store {
 
   /**
    * Send an action to the store
-   * @param {Action} action - the action to send
+   * @type Send<Action>
    */
   send = action => {
     console.debug("Action", action)
@@ -218,21 +203,43 @@ export const forward = (send, tag) => action => {
 }
 
 /**
+ * Default setup function for `rendering()`. It's a no-op.
+ * Note: we type state and send as `any` because JSDoc TS fails to infer
+ * types of generic functions when used in default arguments. These any types
+ * are inferred to be specific State and Action types at the call site.
+ * @param {HTMLElement} element 
+ * @param {*} state 
+ * @param {Send<*>} send 
+ */
+const noSetup = (element, state, send) => {}
+
+/**
  * Create a rendering function that only renders when state actually changes.
  * Change is determined by equality against previously written state.
  * @template State
  * @template Action
- * @param {Rendering<State, Action>} render - rendering function to decorate.
+ * @param {object} options
+ * @param {Rendering<State, Action>} options.setup - rendering function to decorate.
+ * @param {Rendering<State, Action>} options.render - rendering function to decorate.
  * @returns {Rendering<State, Action>} the decorated rendering function.
  */
-export const rendering = render => {
+export const rendering = ({
+  setup=noSetup,
+  render
+}) => {
   // Create a unique symbol for caching state
   // Each renderer gets its own symbol, allowing for multiple renderers
   // to be applied to the same element.
   const _state = Symbol('state')
+  const _isSetup = Symbol('isSetup')
 
   /** @type Rendering<State, Action> */
-  const renderWhenChanged = (element, state, send) => {
+  const renderWithSetup = (element, state, send) => {
+    if (!element[_isSetup]) {
+      setup(element, state, send)
+      element[_isSetup] = true
+    }
+
     let prev = element[_state]
     if (prev !== state) {
       render(element, state, send)
@@ -240,7 +247,7 @@ export const rendering = render => {
     }
   }
 
-  return renderWhenChanged
+  return renderWithSetup
 }
 
 /**
@@ -249,20 +256,27 @@ export const rendering = render => {
  * - Its create function automatically renders while creating
  * @template State
  * @template Action
- * @param {View<State, Action>} view - view to decorate
+ * @param {object} options
+ * @param {string} options.tag - the HTML tag to create for this view. Div by default.
+ * @param {Rendering<State, Action>} options.setup - the setup function. Runs once on firs render. No-op by default.
+ * @param {Rendering<State, Action>} options.render - the render function. Called whenever state changes.
  * @returns {View<State, Action>} the decorated view
  */
-export const view = ({create, render}) => {
+export const view = ({
+  tag='div',
+  setup=noSetup,
+  render
+}) => {
+  const renderWithSetup = rendering({setup, render})
+
   // Create and immediately render element.
-  const createAndRender = (state, send) => {
-    let el = create(state, send)
-    renderWhenChanged(el, state, send)
-    return el
+  const create = (state, send) => {
+    let element = document.createElement(tag)
+    renderWithSetup(element, state, send)
+    return element
   }
 
-  const renderWhenChanged = rendering(render)
-
-  return {create: createAndRender, render: renderWhenChanged}
+  return {create, render: renderWithSetup}
 }
 
 /**
@@ -284,14 +298,6 @@ export const insertElementAt = (parent, element, index) => {
 }
 
 /**
- * @template Action
- * @typedef {object} ItemAction
- * @property {string} type - the action type ("item")
- * @property {string} id - the ID of the item
- * @property {Action} action - the action to wrap
- */
-
-/**
  * Get the id property from an object
  * @param {object} object
  * @returns {*} the ID property
@@ -301,48 +307,46 @@ export const getId = object => object.id
 /**
  * An ID tagging function that doesn't do any tagging... it just returns the
  * action unchanged. This is the default tagging function for `item()`.
- * @template Action
+ * Note: we type state and send as `any` because JSDoc TS fails to infer
+ * types of generic functions when used in default arguments. These any types
+ * are inferred to be specific State and Action types at the call site.
  * @param {string} id - the id of the item
- * @returns {(action: Action) => Action}
+ * @returns {(action: *) => *}
  */
 const noTagging = id => action => action
 
 /**
  * A special view with extra functions for identifying and tagging actions
  * within dynamic lists.
- * @template ItemState
- * @template ItemAction
+ * @template State
  * @template Action
- * @typedef {View<ItemState, ItemAction> & {id: (state: ItemState) => string, tagging: (id: string) => (action: Action) => ItemAction}} ItemView
+ * @template TaggedAction
+ * @typedef {View<State, Action> & {id: (state: State) => string, tagging: (id: string) => (action: Action) => TaggedAction}} ItemView
  */
 
 /**
  * Make an ordinary view into an item view suitable for rendering in
  * dynamic lists.
  *
- * @template ItemState
- * @template ItemAction
+ * @template State
  * @template Action
+ * @template TaggedAction
  * @param {object} itemlike
- * @param {Creating<ItemState, ItemAction>} itemlike.create - a creating function
- * @param {Rendering<ItemState, ItemAction>} itemlike.render - a rendering function
- * @param {(state: ItemState) => string} [itemlike.id] - get a unique ID from the state
- * @param {(id: string) => (action: ItemAction) => Action} [itemlike.tagging] - an ID tagging function
- * @returns {ItemView<ItemState, ItemAction, Action>}
+ * @param {Creating<State, Action>} itemlike.create - a creating function
+ * @param {Rendering<State, Action>} itemlike.render - a rendering function
+ * @param {(state: State) => string} [itemlike.id] - get a unique ID from the state
+ * @param {(id: string) => (action: Action) => TaggedAction} [itemlike.tagging] - an ID tagging function
+ * @returns {ItemView<State, Action, TaggedAction>}
  */
 export const item = ({
   create,
   render,
   id=getId,
-  // TS seems unable to infer that `ItemAction` is `Action`
-  // @ts-ignore
   tagging=noTagging
 }) => ({
   create,
   render,
   id,
-  // TS seems unable to infer that `ItemAction` is `Action`
-  // @ts-ignore
   tagging
 })
 
