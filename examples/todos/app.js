@@ -6,7 +6,6 @@ import {
   model,
   cloning,
   cid,
-  h,
   $,
   prop
 } from '../../mild.js'
@@ -40,7 +39,11 @@ action.filterActive = action.filter(Filter.active)
 action.filterCompleted = action.filter(Filter.completed)
 
 // Returns a function to create a style element
-export const css = style => cloning(() => h('style', {}, style))
+export const css = style => cloning(() => {
+  let styleEl = document.createElement('style')
+  styleEl.innerText = style
+  return styleEl
+})
 
 const checkboxView = view({
   tag: 'input',
@@ -251,7 +254,8 @@ const appView = view({
     element.shadowRoot.append(appStyles())
     element.shadowRoot.append(todoInputView.create(state.input, send))
 
-    let listEl = h('div', {className: 'todo-list'})
+    let listEl = document.createElement('div')
+    listEl.classList.add('todo-lsit')
     element.shadowRoot.append(listEl)
 
     element.shadowRoot.append(filterView.create(state.filter, send))
