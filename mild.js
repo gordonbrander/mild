@@ -14,25 +14,28 @@
 
 /**
  * An element-creating factory function
+ * @template {Node} Target
  * @template State
  * @template Action
- * @typedef {(state: State, send: Send<Action>) => HTMLElement} Creating
+ * @typedef {(state: State, send: Send<Action>) => Target} Creating
  */
 
 /**
  * A rendering function
- * @template State
+ * @template {Node} Target - the target element or node to render to
+ * @template State - the state to render
  * @template Action
- * @typedef {(element: HTMLElement, state: State, send: Send<Action>) => void} Rendering
+ * @typedef {(element: Target, state: State, send: Send<Action>) => void} Rendering
  */
 
 /**
  * A view has functions to create and render an element.
+ * @template {Node} Target
  * @template State
  * @template Action
  * @typedef {object} View
- * @property {Creating<State, Action>} create
- * @property {Rendering<State, Action>} render
+ * @property {Creating<Target, State, Action>} create
+ * @property {Rendering<Target, State, Action>} render
  */
 
 /**
@@ -63,6 +66,7 @@ const animationFrame = () => new Promise(requestAnimationFrame)
 
 /**
   * A store who's state is updated via actions.
+  * @template {Node} Target
   * @template State
   * @template Action
  */
@@ -75,8 +79,8 @@ export class Store {
 
   /**
    * @param {object} options
-   * @param {HTMLElement} options.host - the host element on which to mount the store-managed element
-   * @param {View<State, Action>} options.view - the view to render
+   * @param {Node} options.host - the host element on which to mount the store-managed element
+   * @param {View<Target, State, Action>} options.view - the view to render
    * @param {() => Transaction<State, Action>} options.init - a function to initialize the store
    * @param {(state: State, action: Action) => Transaction<State, Action>} options.update - an update function for producing transactions
    */
@@ -87,7 +91,7 @@ export class Store {
     let {state, effects} = init()
     this.#state = state
     this.#target = create(this.#state, this.send)
-    host.append(this.#target)
+    host.appendChild(this.#target)
     this.runAll(effects)
   }
 
@@ -207,21 +211,22 @@ export const forward = (send, tag) => action => {
  * Note: we type state and send as `any` because JSDoc TS fails to infer
  * types of generic functions when used in default arguments. These any types
  * are inferred to be specific State and Action types at the call site.
- * @param {HTMLElement} element 
- * @param {*} state 
- * @param {Send<*>} send 
+ * @param {*} element
+ * @param {*} state
+ * @param {*} send
  */
 const noSetup = (element, state, send) => {}
 
 /**
  * Create a rendering function that only renders when state actually changes.
  * Change is determined by equality against previously written state.
+ * @template {Node} Target
  * @template State
  * @template Action
  * @param {object} options
- * @param {Rendering<State, Action>} options.setup - rendering function to decorate.
- * @param {Rendering<State, Action>} options.render - rendering function to decorate.
- * @returns {Rendering<State, Action>} the decorated rendering function.
+ * @param {Rendering<Target, State, Action>} options.setup - rendering function to decorate.
+ * @param {Rendering<Target, State, Action>} options.render - rendering function to decorate.
+ * @returns {Rendering<Target, State, Action>} the decorated rendering function.
  */
 export const rendering = ({
   setup=noSetup,
@@ -233,7 +238,7 @@ export const rendering = ({
   const _state = Symbol('state')
   const _isSetup = Symbol('isSetup')
 
-  /** @type Rendering<State, Action> */
+  /** @type Rendering<Target, State, Action> */
   const renderWithSetup = (element, state, send) => {
     if (!element[_isSetup]) {
       setup(element, state, send)
@@ -258,9 +263,9 @@ export const rendering = ({
  * @template Action
  * @param {object} options
  * @param {string} options.tag - the HTML tag to create for this view. Div by default.
- * @param {Rendering<State, Action>} options.setup - the setup function. Runs once on firs render. No-op by default.
- * @param {Rendering<State, Action>} options.render - the render function. Called whenever state changes.
- * @returns {View<State, Action>} the decorated view
+ * @param {Rendering<HTMLElement, State, Action>} options.setup - the setup function. Runs once on firs render. No-op by default.
+ * @param {Rendering<HTMLElement, State, Action>} options.render - the render function. Called whenever state changes.
+ * @returns {View<HTMLElement, State, Action>} the decorated view
  */
 export const view = ({
   tag='div',
@@ -318,25 +323,26 @@ const noTagging = id => action => action
 /**
  * A special view with extra functions for identifying and tagging actions
  * within dynamic lists.
+ * @template {Node} Target
  * @template State
  * @template Action
  * @template TaggedAction
- * @typedef {View<State, Action> & {id: (state: State) => string, tagging: (id: string) => (action: Action) => TaggedAction}} ItemView
+ * @typedef {View<Target, State, Action> & {id: (state: State) => string, tagging: (id: string) => (action: Action) => TaggedAction}} ItemView
  */
 
 /**
  * Make an ordinary view into an item view suitable for rendering in
  * dynamic lists.
- *
+ * @template {Node} Target
  * @template State
  * @template Action
  * @template TaggedAction
  * @param {object} itemlike
- * @param {Creating<State, Action>} itemlike.create - a creating function
- * @param {Rendering<State, Action>} itemlike.render - a rendering function
+ * @param {Creating<Target, State, Action>} itemlike.create - a creating function
+ * @param {Rendering<Target, State, Action>} itemlike.render - a rendering function
  * @param {(state: State) => string} [itemlike.id] - get a unique ID from the state
  * @param {(id: string) => (action: Action) => TaggedAction} [itemlike.tagging] - an ID tagging function
- * @returns {ItemView<State, Action, TaggedAction>}
+ * @returns {ItemView<Target, State, Action, TaggedAction>}
  */
 export const item = ({
   create,
@@ -371,8 +377,8 @@ const _id = Symbol('id')
  * @template State
  * @template Action
  * @param {object} itemlike - an itemlike view, which may or may not have an `id()` function. Defaults to reading the id property of states.
- * @param {Creating<State, Action>} itemlike.create - a function to create the element
- * @param {Rendering<State, Action>} itemlike.render - a function to render the element
+ * @param {Creating<HTMLElement, State, Action>} itemlike.create - a function to create the element
+ * @param {Rendering<HTMLElement, State, Action>} itemlike.render - a function to render the element
  * @param {(state: State) => string} [itemlike.id] - a function to get an ID from the state
  * @param {HTMLElement} parent - the parent element to render children to
  * @param {Array<State>} states - an array of states corresponding to children. Each state must have an ID, as defined by `itemlike.id()`. By default, this is `state.id`.
@@ -455,53 +461,6 @@ export const prop = (object, key, value) => {
   if (object[key] !== value) {
     object[key] = value
   }
-}
-
-/**
- * Set keys on object, avoiding mutation when value is the same.
- * Useful for setting multiple properties on an element while avoiding mutation.
- *
- * @param {HTMLElement} element - the object to set property on
- * @param {object} props - an object representing the properties to change
- */
-export const props = (element, props) => {
-  // Pluck out style and dataset for special handling.
-  // style and dataset are structured values that cannot be directly set as
-  // props. We destructure them so we can set them key-by-key.
-  let {
-    style={},
-    dataset={},
-    ...ordinaryProps
-  } = props
-
-  // Set styles
-  for (let [key, value] of Object.entries(style)) {
-    prop(element.style, key, value)
-  }
-
-  // Set data
-  for (let [key, value] of Object.entries(dataset)) {
-    prop(element.dataset, key, value)
-  }
-
-  // Set remaining properties
-  for (let [key, value] of Object.entries(ordinaryProps)) {
-    prop(element, key, value)
-  }
-}
-
-/**
- * Hyperscript-style element builder.
- * @param {string} tag - the tag of the HTML element to create
- * @param {object} properties - an object representing the properties to set
- * @param {...(HTMLElement|string)} children - children to append
- */
-export const h = (tag, properties, ...children) => {
-  /** @type HTMLElement */
-  let element = document.createElement(tag)
-  props(element, properties)
-  element.replaceChildren(...children)
-  return element
 }
 
 /**
