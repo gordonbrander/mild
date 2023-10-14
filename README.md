@@ -132,7 +132,23 @@ Store takes a configuration object with the following keys:
 
 - `host` - an element on which to mount the root view.
 - `view` - a view (an object with `create()` and `render()` functions)
-- `init` - a function that returns an initial transaction object
-- `update` - a function that rturn
+- `init()` - a function that returns an initial state transaction
+- `update(state, action)` - a function that receives the current state, and an action, and returns a transaction for the next state
 
-To send messages to the store you can use the `Store.send()` method. Store also sends a `send()` function down to view creation and rendering functions. This is often used to bind to event listeners and send messages up to the store.
+To send messages to the store you can use the `Store.send()` method. Store also sends a `send()` function down to view creation and rendering functions. This can be used to bind to event listeners and send messages up to the store.
+
+```js
+store.send({type: 'notify', message: 'Hello world'})
+```
+
+Both `init()` and `update()` return a _transaction_, which is an object containing the next state and an array of "effects" (promises for more actions).
+
+```
+{
+  state: State,
+  effects: [Promise<Action>]
+}
+```
+
+You can create a transaction with `next(state)`, or `next(state, [...effects])` if you want to provide promises for additional side-effects.
+Each promise in the effects array represents some asynchronous side-effect, such as an HTTP request, or database call. The easiest way to produce promises for effects is with async functions. Call the async function, get the promise, add it to the array of effects. When the promise resolves, the resulting action will `send()` to the store, initiating another update.
