@@ -5,7 +5,6 @@ import {
   list,
   view,
   cloning,
-  h,
   cid,
   next,
   prop
@@ -40,9 +39,11 @@ runner.suite('cloning', async () => {
 
 runner.suite('rendering', async () => {
   await test('it only runs write when state has changed', async () => {
-    let renderText = rendering((el, text, send) => {
-      el.innerHTML = ''
-      el.append(text)
+    let renderText = rendering({
+      render: (el, text, send) => {
+        el.innerHTML = ''
+        el.append(text)
+      }
     })
 
     let observer = new MutationObserver((mutationList, observer) => {
@@ -66,6 +67,27 @@ runner.suite('rendering', async () => {
     await wait(1)
 
     observer.disconnect()
+  })
+
+  await test('it only runs setup once', async () => {
+    let count = 0
+
+    let render = rendering({
+      setup: (el, state, _) => {
+        count = count + 1
+      },
+      render: (el, state, _) => {}
+    })
+
+    let element = document.createElement('div')
+    render(element, {})
+    render(element, {})
+    render(element, {})
+
+    assert(
+      count === 1,
+      'It only runs setup once'
+    )
   })
 })
 
@@ -293,44 +315,6 @@ runner.suite('list', async () => {
     await wait(1)
 
     observer.disconnect()
-  })
-})
-
-runner.suite('h', async () => {
-  await test('it constructs the element', () => {
-    let div = h(
-      'div',
-      {
-        id: 'foo',
-        className: 'foo bar',
-        hidden: true,
-        style: {
-          color: 'red'
-        }
-      },
-      h(
-        'p',
-        {
-          id: 'bar',
-          dataset: {
-            key: 'bar'
-          }
-        },
-        'Hello world'
-      )
-    )
-
-    assert(div.nodeName === 'DIV')
-    assert(div.id === 'foo')
-    assert(div.className === 'foo bar')
-    assert(div.hidden === true)
-    assert(div.style.color === 'red')
-
-    let p = div.firstElementChild
-    assert(p.nodeName === 'P')
-    assert(p.id === 'bar')
-    assert(p.dataset.key === 'bar')
-    assert(p.innerText === 'Hello world')
   })
 })
 

@@ -2,7 +2,6 @@ import {
   Store,
   next,
   view,
-  h,
   $,
   prop
 } from '../../mild.js'
@@ -13,26 +12,20 @@ action.increment = {type: 'increment'}
 
 // A view describes how to create and update (render) an element.
 const appView = view({
-  create: (state, send) => h(
-    'div',
-    {className: 'container'},
-    h(
-      'div',
-      {className: 'text'}
-    ),
-    h(
-      'button',
-      {
-        className: 'button',
-        onclick: event => {
-          send(action.increment)
-        }
-      },
-      'Click to increment'
-    )
-  ),
-  render: (containerEl, state, send) => {
-    let textEl = $(containerEl, '.text')
+  setup: (el, state, send) => {
+    el.className = 'container'
+    let textEl = document.createElement('div')
+    textEl.className = 'text'
+    el.append(textEl)
+
+    let buttonEl = document.createElement('button')
+    buttonEl.className = 'text'
+    buttonEl.onclick = event => send(action.increment)
+    buttonEl.innerText = 'Click to increment'
+    el.append(buttonEl)
+  },
+  render: (el, state, send) => {
+    let textEl = $(el, '.text')
     prop(textEl, 'innerText', state.count)
   }
 })
