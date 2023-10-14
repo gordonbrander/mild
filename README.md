@@ -151,4 +151,5 @@ Both `init()` and `update()` return a _transaction_, which is an object containi
 ```
 
 You can create a transaction with `next(state)`, or `next(state, [...effects])` if you want to provide promises for additional side-effects.
+
 Each promise in the effects array represents some asynchronous side-effect, such as an HTTP request, or database call. The easiest way to produce promises for effects is with async functions. Call the async function, get the promise, add it to the array of effects. When the promise resolves, the resulting action will `send()` to the store, initiating another update.
