@@ -255,7 +255,7 @@ const appView = view({
     element.shadowRoot.append(todoInputView.create(state.input, send))
 
     let listEl = document.createElement('div')
-    listEl.classList.add('todo-lsit')
+    listEl.classList.add('todo-list')
     element.shadowRoot.append(listEl)
 
     element.shadowRoot.append(filterView.create(state.filter, send))
