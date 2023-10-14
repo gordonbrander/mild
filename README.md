@@ -23,35 +23,31 @@ import {
   Store,
   next,
   view,
-  h,
   $,
   prop
-} from '../../mild.js'
+} from './mild.js'
 
 // All state changes are expressed in terms of actions sent to a store
 const action = {}
 action.increment = {type: 'increment'}
 
-// A view describes how to create and update (render) an element.
+// A view describes how to setup and update (render) an element.
 const appView = view({
-  create: (state, send) => h(
-    'div',
-    {className: 'container'},
-    h(
-      'div',
-      {className: 'text'}
-    ),
-    h(
-      'button',
-      {
-        className: 'button',
-        onclick: event => send(action.increment)
-      },
-      'Click to increment'
-    )
-  ),
-  render: (containerEl, state, send) => {
-    let textEl = $(containerEl, '.text')
+  tag: 'div',
+  setup: (el, state, send) => {
+    el.className = 'container'
+    let textEl = document.createElement('div')
+    textEl.className = 'text'
+    el.append(textEl)
+
+    let buttonEl = document.createElement('button')
+    buttonEl.className = 'text'
+    buttonEl.onclick = event => send(action.increment)
+    buttonEl.innerText = 'Click to increment'
+    el.append(buttonEl)
+  },
+  render: (el, state, send) => {
+    let textEl = $(el, '.text')
     prop(textEl, 'innerText', state.count)
   }
 })
@@ -83,15 +79,14 @@ let store = new Store({
 
 ## `view()`
 
-Mild views are described with two functions, one to create the element, and the other to update it. Like this:
+Mild views are described with a tag and two functions, one to setup the element, and the other to update it. Like this:
 
 ```js
 const heading = view({
-  create: state => {
-    let el = document.createElement('h1')
+  tag: 'h1',
+  setup: (el, state) => {
     el.id = state.id
     el.className = 'heading'
-    return el
   },
   render: (el, state) => {
     el.innerText = state.text
@@ -99,20 +94,20 @@ const heading = view({
 })
 ```
 
-`view()` decorates these functions, so:
+`view()` takes these inputs and returns an object with:
 
-- `view.create()` - creates and immediately renders the element
-- `view.render()` - writes to the element, but only if state has actually changed (as determined by strict value equality)
+- `view.create(state)` - creates and immediately sets up and renders the element
+- `view.render(element, state)` - sets up the element if needed, and renders it, but only if the state has changed
 
 ```js
-// Create an element
+// Create an element. This runs both setup and render.
 let el = heading.create({text: 'Hello World'})
 
-// Update it
+// Update it.
 let state = {text: 'Goodbye'}
 heading.render(el, state)
 
-// Render only writes to the DOM when something changes.
+// Only calls underlying render function when state actually changes.
 // Calling render multiple times with same state is a no-op.
 heading.render(el, state)
 heading.render(el, state)

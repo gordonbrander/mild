@@ -17,7 +17,7 @@ const appView = view({
     let textEl = document.createElement('div')
     textEl.className = 'text'
     el.append(textEl)
- 
+
     let buttonEl = document.createElement('button')
     buttonEl.className = 'text'
     buttonEl.onclick = event => send(action.increment)
