@@ -7,7 +7,8 @@ import {
   cloning,
   cid,
   $,
-  prop
+  prop,
+  text
 } from '../../mild.js'
 
 const freeze = Object.freeze
@@ -41,27 +42,23 @@ action.filterCompleted = action.filter(Filter.completed)
 // Returns a function to create a style element
 export const css = style => cloning(() => {
   let styleEl = document.createElement('style')
-  styleEl.innerText = style
+  text(styleEl, style)
   return styleEl
 })
 
 const checkboxView = view({
   tag: 'input',
-  setup: (el, isChecked, send) => {
-    el.type = 'checkbox'
-    el.className = 'todo-check'
-  },
   render: (el, isChecked, send) => {
+    prop(el, 'type', 'checkbox')
+    prop(el, 'className', 'todo-check')
     prop(el, 'checked', isChecked)
   }
 })
 
 const todoTitleView = view({
-  setup: (el, title, send) => {
-    el.className = 'todo-title'
-  },
   render: (el, title, send) => {
-    el.innerText = title
+    prop(el, 'className', 'todo-title')
+    text(el, title)
   }
 })
 
@@ -112,7 +109,7 @@ const filterButtonView = view({
     element.onclick = send
   },
   render: (element, state, send) => {
-    prop(element, 'innerText', state.title)
+    text(element, state.title)
   }
 })
 

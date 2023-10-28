@@ -463,13 +463,23 @@ export const cloning = create => {
 }
 
 /**
- * Set key on object, but only if value has changed.
+ * Layout-triggering DOM properties.
+ * @see https://gist.github.com/paulirish/5d52fb081b3570c81e3a
+ */
+const LAYOUT_TRIGGERING_PROPS = new Set(['innerText'])
+
+/**
+ * Set object key, but only if value has actually changed.
  * This is useful when setting keys on DOM elements, where setting the same 
- * value might trigger a style recalc.
+ * value twice might trigger an unnecessary reflow or a style recalc.
+ * prop caches the written value and only writes the new value if it
+ * is different from the last-written value.
  * 
- * Note that the typical layout-triggering DOM properties are read-only,
- * so this is safe to use to write to DOM element properties.
- * See https://gist.github.com/paulirish/5d52fb081b3570c81e3a.
+ * In most cases, we can simply read the value of the DOM property itself.
+ * However, there are footgun properties such as `innerText` which
+ * will trigger reflow if you read from them. In these cases we warn and
+ * simply write through without reading.
+ * @see https://gist.github.com/paulirish/5d52fb081b3570c81e3a
  *
  * @template Value - a value that corresponds to the property key
  * @param {object} object - the object to set property on
@@ -477,10 +487,24 @@ export const cloning = create => {
  * @param {Value} value - the value to set
  */
 export const prop = (object, key, value) => {
+  if (LAYOUT_TRIGGERING_PROPS.has(key)) {
+    console.warn(`Reading property ${key} triggers layout. Writing property without reading.`)
+    object[key] = value
+    return
+  }
+
   if (object[key] !== value) {
     object[key] = value
   }
 }
+
+/**
+ * Set the textContent of an element, but only if it has actually changes.
+ * Shortcut for `prop(element, 'textContent', value)`.
+ * @param {Node} node - the elemetn to set text on
+ * @param {String} value - the value to set
+ */
+export const text = (node, value) => prop(node, 'textContent', value)
 
 /**
  * Shortcut for scoped `element.querySelector` query
