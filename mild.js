@@ -488,9 +488,7 @@ const LAYOUT_TRIGGERING_PROPS = new Set(['innerText'])
  */
 export const prop = (object, key, value) => {
   if (LAYOUT_TRIGGERING_PROPS.has(key)) {
-    console.warn(`Reading property ${key} triggers layout. Writing property without reading.`)
-    object[key] = value
-    return
+    console.warn(`Reading property ${key} triggers layout. Consider writing to this property directly instead of through prop().`)
   }
 
   if (object[key] !== value) {
