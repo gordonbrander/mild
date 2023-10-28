@@ -43,12 +43,12 @@ const appView = view({
     let buttonEl = document.createElement('button')
     buttonEl.className = 'text'
     buttonEl.onclick = event => send(action.increment)
-    buttonEl.innerText = 'Click to increment'
+    buttonEl.textContent = 'Click to increment'
     el.append(buttonEl)
   },
   render: (el, state, send) => {
     let textEl = $(el, '.text')
-    prop(textEl, 'innerText', state.count)
+    textEl.textContent = state.count
   }
 })
 
@@ -87,7 +87,7 @@ const heading = view({
     el.className = 'heading'
   },
   render: (el, state) => {
-    el.innerText = state.text
+    el.textContent = state.text
   }
 })
 ```
@@ -113,6 +113,16 @@ heading.render(el, state)
 ```
 
 You can call `view.render()` as often as you like. It will only write to the DOM when something has actually changed.
+
+Mild also provides helper functions for granular property updates:
+
+```js
+// Only sets property when value actually changes.
+prop(el, 'hidden', state.isHidden)
+
+// Only sets text when value actually changes.
+text(el, state.text)
+```
 
 It turns out that hand-crafting your DOM-patching logic like this is very efficient. Unlike a virtual dom, the program doesn't have to do diffing, since you tell it exactly what to update. And while it occasionally requires a little bit more code, it gives you direct access to all platform features, and control over granular updates.
 

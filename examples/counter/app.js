@@ -2,8 +2,7 @@ import {
   Store,
   next,
   view,
-  $,
-  prop
+  $
 } from '../../mild.js'
 
 // All state changes are expressed in terms of actions sent to a store
@@ -21,12 +20,12 @@ const appView = view({
     let buttonEl = document.createElement('button')
     buttonEl.className = 'text'
     buttonEl.onclick = event => send(action.increment)
-    buttonEl.innerText = 'Click to increment'
+    buttonEl.textContent = 'Click to increment'
     el.append(buttonEl)
   },
   render: (el, state, send) => {
     let textEl = $(el, '.text')
-    prop(textEl, 'innerText', state.count)
+    textEl.textContent = state.count
   }
 })
 
