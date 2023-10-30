@@ -86,19 +86,18 @@ export class Store {
 
   /**
    * @param {object} options
-   * @param {Node} options.host - the host element on which to mount the store-managed element
-   * @param {View<Target, State, Action>} options.view - the view to render
+   * @param {HTMLElement} options.target - the host element on which to mount the store-managed element
+   * @param {Rendering<HTMLElement, State, Action>} options.render - the view to render
    * @param {() => Transaction<State, Action>} options.init - a function to initialize the store
    * @param {(state: State, action: Action) => Transaction<State, Action>} options.update - an update function for producing transactions
    */
-  constructor({host, view, init, update}) {
-    let {create, render} = view
+  constructor({target, init, update, render}) {
     this.#render = render
     this.#update = update
+    this.#target = target
     let {state, effects} = init()
     this.#state = state
-    this.#target = create(this.#state, this.send)
-    host.appendChild(this.#target)
+    render(target, state, this.send)
     this.runAll(effects)
   }
 
@@ -206,6 +205,18 @@ export const cursor = ({
 }
 
 /**
+ * @template State
+ * @template Action
+ * @param {State} state
+ * @param {Action} action
+ * @returns {Transaction<State, Action>}
+ */
+export const unknown = (state, action) => {
+  console.warn("Unknown action type", action)
+  return next(state)
+}
+
+/**
  * Forward messages sent to a send function.
  * Creates a new send function that tags actions before sending them.
  * @template Action
@@ -275,9 +286,7 @@ export const rendering = ({
 }
 
 /**
- * Decorate a basic view so that
- * - Its rendering function only renders when state changes
- * - Its create function automatically renders while creating
+ * Create a view
  * @template State
  * @template Action
  * @param {object} options
@@ -302,6 +311,27 @@ export const view = ({
 
   return {create, render: renderWithSetup}
 }
+
+/**
+ * @template State
+ * @template Action
+ * @param {View<Element, State, Action>} render 
+ * @returns {Rendering<Element, State, Action>}
+ */
+export const mounting = ({create, render}) => rendering({
+  setup: (element, state, send) => {
+    const child = create(state, send)
+    element.replaceChildren(child)
+  },
+  render: (element, state, send) => {
+    const child = element.firstElementChild
+    if (child != null) {
+      render(child, state, send)
+    } else {
+      console.warn('Could not find mounted child element. Did you accidentally remove it?')
+    }
+  }
+})
 
 /**
  * Insert element at index.
@@ -452,17 +482,6 @@ export const list = (
 }
 
 /**
- * Decorate a create function so that it caches and deep-clones
- * the returned element.
- * @param {() => HTMLElement} create - an element factory function
- * @returns HTMLElement
- */
-export const cloning = create => {
-  let element = create()
-  return () => element.cloneNode(true)
-}
-
-/**
  * Layout-triggering DOM properties.
  * @see https://gist.github.com/paulirish/5d52fb081b3570c81e3a
  */
@@ -477,8 +496,7 @@ const LAYOUT_TRIGGERING_PROPS = new Set(['innerText'])
  * 
  * In most cases, we can simply read the value of the DOM property itself.
  * However, there are footgun properties such as `innerText` which
- * will trigger reflow if you read from them. In these cases we warn and
- * simply write through without reading.
+ * will trigger reflow if you read from them. In these cases we warn developers.
  * @see https://gist.github.com/paulirish/5d52fb081b3570c81e3a
  *
  * @template Value - a value that corresponds to the property key
@@ -488,7 +506,7 @@ const LAYOUT_TRIGGERING_PROPS = new Set(['innerText'])
  */
 export const prop = (object, key, value) => {
   if (LAYOUT_TRIGGERING_PROPS.has(key)) {
-    console.warn(`Reading property ${key} triggers layout. Consider writing to this property directly instead of through prop().`)
+    console.warn(`Checking property value for ${key} triggers layout. Consider writing to this property without using prop().`)
   }
 
   if (object[key] !== value) {

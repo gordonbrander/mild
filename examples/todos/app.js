@@ -3,12 +3,13 @@ import {
   next,
   view,
   list,
+  mounting,
   model,
-  cloning,
   cid,
   $,
   prop,
-  text
+  text,
+  unknown
 } from '../../mild.js'
 
 const freeze = Object.freeze
@@ -40,11 +41,11 @@ action.filterActive = action.filter(Filter.active)
 action.filterCompleted = action.filter(Filter.completed)
 
 // Returns a function to create a style element
-export const css = style => cloning(() => {
+export const css = style => {
   let styleEl = document.createElement('style')
   text(styleEl, style)
   return styleEl
-})
+}
 
 const checkboxView = view({
   tag: 'input',
@@ -169,6 +170,7 @@ const appStyles = css(`
 :host {
   font-size: 16px;
   line-height: 16px;
+  font-family: sans-serif;
 }
 
 * {
@@ -248,7 +250,7 @@ const appView = view({
     element.classList.add('todo-app')
 
     element.attachShadow({mode: 'open'})
-    element.shadowRoot.append(appStyles())
+    element.shadowRoot.append(appStyles)
     element.shadowRoot.append(todoInputView.create(state.input, send))
 
     let listEl = document.createElement('div')
@@ -391,14 +393,15 @@ const update = (state, action) => {
   case 'filter':
     return updateFilter(state, action.value)
   default:
-    console.warn("Unhandled action type", action)
-    return next(state)
+    return unknown(state, action)
   }
 }
 
+let body = $(document, 'body')
+
 let store = new Store({
-  host: document.querySelector('body'),
-  view: appView,
+  target: body,
   init,
-  update
+  update,
+  render: mounting(appView)
 })

@@ -2,6 +2,7 @@ import {
   Store,
   next,
   view,
+  mounting,
   $
 } from '../../mild.js'
 
@@ -45,10 +46,12 @@ const update = (state, action) => {
   }
 }
 
+let body = $(document, 'body')
+
 // Initialize store
 let store = new Store({
-  host: document.querySelector('body'),
-  view: appView,
+  target: body,
+  render: mounting(appView),
   init,
   update
 })
