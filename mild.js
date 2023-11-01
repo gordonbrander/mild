@@ -78,17 +78,20 @@ export class Store {
 
   /**
    * @param {object} options
-   * @param {HTMLElement} options.target - the host element on which to mount the store-managed element
-   * @param {Rendering<HTMLElement, State, Action>} options.render - the view to render
+   * @param {HTMLElement} options.mount - the host element on which to mount the store-managed element
+   * @param {() => Target} options.create - the view to render
+   * @param {Rendering<Target, State, Action>} options.render - the view to render
    * @param {() => Transaction<State, Action>} options.init - a function to initialize the store
    * @param {(state: State, action: Action) => Transaction<State, Action>} options.update - an update function for producing transactions
    */
-  constructor({target, init, update, render}) {
+  constructor({mount, init, update, create, render}) {
     this.#render = render
     this.#update = update
-    this.#target = target
     let {state, effects} = init()
     this.#state = state
+    let target = create()
+    this.#target = target
+    mount.replaceChildren(target)
     render(target, state, this.send)
     this.runAll(effects)
   }
