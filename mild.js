@@ -17,14 +17,6 @@
  */
 
 /**
- * An element-creating factory function.
- * @template {Node} Target
- * @template State
- * @template Action
- * @typedef {(state: State, send: Send<Action>) => Target} Creating
- */
-
-/**
  * A rendering function. It takes a target, state, and send callback, and
  * performs a mutation on the target to update it with the state. The send
  * callback may be used to send up actions from event listeners.
@@ -40,7 +32,7 @@
  * @template State
  * @template Action
  * @typedef {object} View
- * @property {Creating<Target, State, Action>} create
+ * @property {() => Target} create
  * @property {Rendering<Target, State, Action>} render
  */
 
@@ -230,108 +222,80 @@ export const forward = (send, tag) => action => {
 }
 
 /**
- * Default setup function for `rendering()`. It's a no-op.
- * Note: we type state and send as `any` because JSDoc TS fails to infer
- * types of generic functions when used in default arguments. These any types
- * are inferred to be specific State and Action types at the call site.
- * @param {*} element
- * @param {*} state
- * @param {*} send
- */
-const noSetup = (element, state, send) => {}
-
-/**
  * Create a rendering function that only renders when state actually changes.
  * Change is determined by equality against previously written state.
  * @template {Node} Target
  * @template State
  * @template Action
- * @param {object} options
- * @param {Rendering<Target, State, Action>} options.setup - a rendering
- *   function that will be run once per element, on first render.
- *   You can use this to do any one-time initialization, such as scaffolding
- *   additional DOM elements within the target, or binding event listeners.
- * @param {Rendering<Target, State, Action>} options.render - a rendering
+ * @param {Rendering<Target, State, Action>} render - a rendering
  *   function to be run every time state changes. State change is determined
  *   by strict value equality. If passing an object for states, you should
  *   create a new state object for every update (immutable style).
  * @returns {Rendering<Target, State, Action>} a decorated rendering function
  *   that will run setup once, and run render only when state has changed.
  */
-export const rendering = ({
-  setup=noSetup,
-  render
-}) => {
+export const rendering = render => {
   // Create a unique symbol for caching state
   // Each renderer gets its own symbol, allowing for multiple renderers
   // to be applied to the same element.
   const _state = Symbol('state')
-  const _isSetup = Symbol('isSetup')
-
   /** @type Rendering<Target, State, Action> */
-  const renderWithSetup = (element, state, send) => {
-    if (!element[_isSetup]) {
-      setup(element, state, send)
-      element[_isSetup] = true
-    }
-
+  return (element, state, send) => {
     let prev = element[_state]
     if (prev !== state) {
       render(element, state, send)
       element[_state] = state
     }
   }
+}
 
-  return renderWithSetup
+/**
+ * Transform an element factory function into a function that deep clones the
+ * element.
+ * @template {Node} Target
+ * @param {() => Target} factory
+ * @returns {() => Target}
+ */
+export const cloning = factory => {
+  let element = factory()
+  // @ts-ignore
+  return () => element.cloneNode(true)
 }
 
 /**
  * Create a view
  * @template State
  * @template Action
+ * @template {Node} Target
  * @param {object} options
  * @param {string} options.tag - the HTML tag to create for this view. Div by default.
- * @param {Rendering<HTMLElement, State, Action>} options.setup - the setup function. Runs once on firs render. No-op by default.
- * @param {Rendering<HTMLElement, State, Action>} options.render - the render function. Called whenever state changes.
- * @returns {View<HTMLElement, State, Action>} the decorated view
+ * @param {() => Target} options.create - a function to scaffold the element and its children.
+ * @param {Rendering<Target, State, Action>} options.render - the render function. Called whenever state changes.
+ * @returns {View<Target, State, Action>} the decorated view
  */
 export const view = ({
-  tag='div',
-  setup=noSetup,
+  create,
   render
-}) => {
-  const renderWithSetup = rendering({setup, render})
-
-  // Create and immediately render element.
-  const create = (state, send) => {
-    let element = document.createElement(tag)
-    renderWithSetup(element, state, send)
-    return element
-  }
-
-  return {create, render: renderWithSetup}
-}
+}) => ({
+  create: cloning(create),
+  render: rendering(render)
+})
 
 /**
+ * Create and render a view in one go.
+ * @template {Node} Target
  * @template State
  * @template Action
- * @param {View<Element, State, Action>} render 
- * @returns {Rendering<Element, State, Action>}
+ * @param {View<Target, State, Action>} view
+ * @param {State} state
+ * @param {(Action) => void} send
+ * @returns {Target}
  */
-export const mounting = ({create, render}) => rendering({
-  setup: (element, state, send) => {
-    const child = create(state, send)
-    element.replaceChildren(child)
-  },
-  render: (element, state, send) => {
-    const child = element.firstElementChild
-    if (child != null) {
-      render(child, state, send)
-    } else {
-      console.warn('Could not find mounted child element. Did you accidentally remove it?')
-    }
-  }
-})
+export const create = ({create, render}, state, send) => {
+  let element = create()
+  render(element, state, send)
+  return element
+}
 
 /**
  * Insert element at index.
@@ -387,7 +351,7 @@ const noTagging = id => action => action
  * @template Action
  * @template TaggedAction
  * @param {object} itemlike
- * @param {Creating<Target, State, Action>} itemlike.create - a creating function
+ * @param {() => Target} itemlike.create - a creating function
  * @param {Rendering<Target, State, Action>} itemlike.render - a rendering function
  * @param {(state: State) => string} [itemlike.id] - get a unique ID from the state
  * @param {(id: string) => (action: Action) => TaggedAction} [itemlike.tagging] - an ID tagging function
@@ -426,7 +390,7 @@ const _id = Symbol('id')
  * @template State
  * @template Action
  * @param {object} itemlike - an itemlike view, which may or may not have an `id()` function. Defaults to reading the id property of states.
- * @param {Creating<HTMLElement, State, Action>} itemlike.create - a function to create the element
+ * @param {() => HTMLElement} itemlike.create - a function to create the element
  * @param {Rendering<HTMLElement, State, Action>} itemlike.render - a function to render the element
  * @param {(state: State) => string} [itemlike.id] - a function to get an ID from the state
  * @param {HTMLElement} parent - the parent element to render children to
@@ -439,13 +403,13 @@ export const list = (
   states,
   send
 ) => {
-  const {create, render, id, tagging} = item(itemlike)
+  const itemView = item(itemlike)
   let stateMap = new Map()
   for (let state of states) {
-    if (id(state) === null) {
+    if (itemView.id(state) === null) {
       throw TypeError("State does not have an ID")
     }
-    stateMap.set(id(state), state)
+    stateMap.set(itemView.id(state), state)
   }
 
   // Remove children that are no longer part of state
@@ -467,18 +431,64 @@ export const list = (
   // Add or re-order items as needed.
   for (var i = 0; i < states.length; i++) {
     let state = states[i]
-    let child = childMap.get(id(state))
-    let tag = tagging(id(state))
+    let child = childMap.get(itemView.id(state))
+    let tag = itemView.tagging(itemView.id(state))
     let address = forward(send, tag)
     if (child == null) {
-      let child = create(state, address)
-      child[_id] = id(state)
+      let child = create(itemView, state, address)
+      child[_id] = itemView.id(state)
       insertElementAt(parent, child, i)
     } else {
       insertElementAt(parent, child, i)
-      render(child, state, address)
+      itemView.render(child, state, address)
     }
   }
+}
+
+export const h = (
+  tag,
+  props={},
+  ...children
+) => {
+  let element = document.createElement(tag)
+
+  const {
+    styles,
+    dataset,
+    ...ordinaryProps
+  } = props
+
+  for (let [key, value] of Object.entries(styles)) {
+    element.style[key] = value
+  }
+
+  for (let [key, value] of Object.entries(dataset)) {
+    element.dataset[key] = value
+  }
+
+  for (let [key, value] of Object.entries(ordinaryProps)) {
+    element[key] = value
+  }
+
+  for (let child of children) {
+    element.append(child)
+  }
+
+  return element
+}
+
+export const fragment = string => {
+  let templateEl = document.createElement('template')
+  templateEl.innerHTML = string
+  return templateEl.content
+}
+
+export const html = string => fragment(string).firstElementChild
+
+export const css = rules => {
+  let sheet = new CSSStyleSheet()
+  sheet.replaceSync(rules)
+  return sheet
 }
 
 /**
