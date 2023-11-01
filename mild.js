@@ -280,7 +280,7 @@ export const view = ({
   create,
   render
 }) => ({
-  create: cloning(create),
+  create,
   render: rendering(render)
 })
 
