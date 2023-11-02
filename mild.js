@@ -498,8 +498,8 @@ export const h = (
   let element = document.createElement(tag)
 
   const {
-    styles,
-    dataset,
+    styles={},
+    dataset={},
     ...ordinaryProps
   } = props
 
