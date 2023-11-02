@@ -2,8 +2,8 @@ import {
   Store,
   next,
   view,
-  mounting,
-  $
+  $,
+  h
 } from '../../mild.js'
 
 // All state changes are expressed in terms of actions sent to a store
@@ -12,19 +12,16 @@ action.increment = {type: 'increment'}
 
 // A view describes how to create and update (render) an element.
 const appView = view({
-  setup: (el, state, send) => {
-    el.className = 'container'
-    let textEl = document.createElement('div')
-    textEl.className = 'text'
-    el.append(textEl)
-
-    let buttonEl = document.createElement('button')
-    buttonEl.className = 'text'
-    buttonEl.onclick = event => send(action.increment)
-    buttonEl.textContent = 'Click to increment'
-    el.append(buttonEl)
-  },
+  create: () => h(
+    'div',
+    {className: 'container'},
+    h('div', {className: 'text'}),
+    h('button', {className: 'button'}, 'Click to increment')
+  ),
   render: (el, state, send) => {
+    let buttonEl = $(el, '.button')
+    buttonEl.onclick = event => send(action.increment)
+
     let textEl = $(el, '.text')
     textEl.textContent = state.count
   }
@@ -50,8 +47,8 @@ let body = $(document, 'body')
 
 // Initialize store
 let store = new Store({
-  target: body,
-  render: mounting(appView),
+  mount: body,
   init,
-  update
+  update,
+  ...appView
 })
