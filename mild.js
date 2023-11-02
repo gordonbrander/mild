@@ -225,31 +225,59 @@ export const forward = (send, tag) => action => {
 }
 
 /**
+ * Default setup function for `rendering()`. It's a no-op.
+ * Note: we type state and send as `any` because JSDoc TS fails to infer
+ * types of generic functions when used in default arguments. These any types
+ * are inferred to be specific State and Action types at the call site.
+ * @param {*} element
+ * @param {*} state
+ * @param {*} send
+ */
+const noSetup = (element, state, send) => {}
+
+/**
  * Create a rendering function that only renders when state actually changes.
  * Change is determined by equality against previously written state.
  * @template {Node} Target
  * @template State
  * @template Action
- * @param {Rendering<Target, State, Action>} render - a rendering
+ * @param {object} options
+ * @param {Rendering<Target, State, Action>} options.setup - a rendering
+ *   function that will be run once per element, on first render.
+ *   You can use this to do any one-time initialization, such as scaffolding
+ *   additional DOM elements within the target, or binding event listeners.
+ * @param {Rendering<Target, State, Action>} options.render - a rendering
  *   function to be run every time state changes. State change is determined
  *   by strict value equality. If passing an object for states, you should
  *   create a new state object for every update (immutable style).
  * @returns {Rendering<Target, State, Action>} a decorated rendering function
  *   that will run setup once, and run render only when state has changed.
  */
-export const rendering = render => {
+export const rendering = ({
+  setup=noSetup,
+  render
+}) => {
   // Create a unique symbol for caching state
   // Each renderer gets its own symbol, allowing for multiple renderers
   // to be applied to the same element.
   const _state = Symbol('state')
+  const _isSetup = Symbol('isSetup')
+
   /** @type Rendering<Target, State, Action> */
-  return (element, state, send) => {
+  const renderWithSetup = (element, state, send) => {
+    if (!element[_isSetup]) {
+      setup(element, state, send)
+      element[_isSetup] = true
+    }
+
     let prev = element[_state]
     if (prev !== state) {
       render(element, state, send)
       element[_state] = state
     }
   }
+
+  return renderWithSetup
 }
 
 /**
@@ -271,17 +299,24 @@ export const cloning = factory => {
  * @template Action
  * @template {Node} Target
  * @param {object} options
- * @param {string} options.tag - the HTML tag to create for this view. Div by default.
  * @param {() => Target} options.create - a function to scaffold the element and its children.
- * @param {Rendering<Target, State, Action>} options.render - the render function. Called whenever state changes.
+ * @param {Rendering<Target, State, Action>} options.setup - a rendering
+ *   function that will be run once per element, on first render.
+ *   You can use this to do any one-time initialization, such as scaffolding
+ *   additional DOM elements within the target, or binding event listeners.
+ * @param {Rendering<Target, State, Action>} options.render - a rendering
+ *   function to be run every time state changes. State change is determined
+ *   by strict value equality. If passing an object for states, you should
+ *   create a new state object for every update (immutable style).
  * @returns {View<Target, State, Action>} the decorated view
  */
 export const view = ({
   create,
+  setup=noSetup,
   render
 }) => ({
   create,
-  render: rendering(render)
+  render: rendering({render, setup})
 })
 
 /**
@@ -448,6 +483,13 @@ export const list = (
   }
 }
 
+/**
+ * Hyperscript-style element builder
+ * @param {string} tag - the tag name of the element to create 
+ * @param {object} props - element properties to set
+ * @param  {...(Node | string)} children - elements or strings to append
+ * @returns {HTMLElement}
+ */
 export const h = (
   tag,
   props={},
@@ -478,20 +520,6 @@ export const h = (
   }
 
   return element
-}
-
-export const fragment = string => {
-  let templateEl = document.createElement('template')
-  templateEl.innerHTML = string
-  return templateEl.content
-}
-
-export const html = string => fragment(string).firstElementChild
-
-export const css = rules => {
-  let sheet = new CSSStyleSheet()
-  sheet.replaceSync(rules)
-  return sheet
 }
 
 /**
