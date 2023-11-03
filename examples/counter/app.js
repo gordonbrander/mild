@@ -11,7 +11,7 @@ const action = {}
 action.increment = {type: 'increment'}
 
 // A view describes how to create and update (render) an element.
-const appView = view({
+const app = view({
   create: () => h(
     'div',
     {className: 'container'},
@@ -27,16 +27,16 @@ const appView = view({
   }
 })
 
-const appModel = ({count}) => ({count})
+app.model = ({count}) => ({count})
 
 // Create initial state transaction
-const init = () => next(appModel({count: 0}))
+app.init = () => next(app.model({count: 0}))
 
 // Given previous state and an action, creates new state transactions.
-const update = (state, action) => {
+app.update = (state, action) => {
   switch (action.type) {
   case 'increment':
-    return next(appModel({...state, count: state.count + 1}))
+    return next(app.model({...state, count: state.count + 1}))
   default:
     console.warn("Unhandled action type", action)
     return next(state)
@@ -48,7 +48,5 @@ let body = $(document, 'body')
 // Initialize store
 let store = new Store({
   mount: body,
-  init,
-  update,
-  ...appView
+  ...app
 })

@@ -24,67 +24,66 @@ import {
   next,
   view,
   $,
-  prop
-} from './mild.js'
+  h
+} from '../../mild.js'
 
 // All state changes are expressed in terms of actions sent to a store
 const action = {}
 action.increment = {type: 'increment'}
 
-// A view describes how to setup and update (render) an element.
-const appView = view({
-  tag: 'div',
-  setup: (el, state, send) => {
-    el.className = 'container'
-    let textEl = document.createElement('div')
-    textEl.className = 'text'
-    el.append(textEl)
-
-    let buttonEl = document.createElement('button')
-    buttonEl.className = 'text'
-    buttonEl.onclick = event => send(action.increment)
-    buttonEl.textContent = 'Click to increment'
-    el.append(buttonEl)
-  },
+// A view describes how to create and update (render) an element.
+const app = view({
+  create: () => h(
+    'div',
+    {className: 'container'},
+    h('div', {className: 'text'}),
+    h('button', {className: 'button'}, 'Click to increment')
+  ),
   render: (el, state, send) => {
+    let buttonEl = $(el, '.button')
+    buttonEl.onclick = event => send(action.increment)
+
     let textEl = $(el, '.text')
     textEl.textContent = state.count
   }
 })
 
+app.model = ({count}) => ({count})
+
 // Create initial state transaction
-const init = () => next({count: 0})
+app.init = () => next(app.model({count: 0}))
 
 // Given previous state and an action, creates new state transactions.
-const update = (state, action) => {
+app.update = (state, action) => {
   switch (action.type) {
   case 'increment':
-    return next({...state, count: state.count + 1})
+    return next(app.model({...state, count: state.count + 1}))
   default:
     console.warn("Unhandled action type", action)
     return next(state)
   }
 }
 
+let body = $(document, 'body')
+
 // Initialize store
 let store = new Store({
-  host: document.querySelector('body'),
-  view: appView,
-  init,
-  update
+  mount: body,
+  ...app
 })
 ```
 
 ## `view()`
 
-Mild views are described with a tag and two functions, one to setup the element, and the other to update it. Like this:
+Mild views are described with a two functions, one to create the element, and the other to update it. Like this:
 
 ```js
 const heading = view({
-  tag: 'h1',
-  setup: (el, state) => {
+  create: () => {
+    let el = document.createElement('h1')
     el.id = state.id
     el.className = 'heading'
+    return el
   },
   render: (el, state) => {
     el.textContent = state.text
@@ -92,14 +91,14 @@ const heading = view({
 })
 ```
 
-`view()` takes these inputs and returns an object with:
+`view()` takes these functions and returns an object with:
 
-- `view.create(state)` - creates and immediately sets up and renders the element
-- `view.render(element, state)` - sets up the element if needed, and renders it, but only if the state has changed
+- `view.create()` - creates the element
+- `view.render(element, state)` - renders it, but only if the state has changed
 
 ```js
 // Create an element. This runs both setup and render.
-let el = heading.create({text: 'Hello World'})
+let el = heading.create()
 
 // Update it.
 let state = {text: 'Goodbye'}
@@ -135,17 +134,18 @@ Mild has a `Store` class that is inspired by the Elm App Architecture.
 - All state updates are defined through an update function that produces the next state, plus any asynchronous side-effects, such as HTTP requests.
 
 ```js
-let store = new Store({host, view, init, update})
+let store = new Store({mount, create, render, init, update})
 ```
 
 Store takes a configuration object with the following keys:
 
-- `host` - an element on which to mount the root view.
-- `view` - a view (an object with `create()` and `render()` functions)
+- `mount` - an element on which to mount the root view.
+- `create()` - a create function
+- `render()` - a rendering function
 - `init()` - a function that returns an initial state transaction
 - `update(state, action)` - a function that receives the current state, and an action, and returns a transaction for the next state
 
-To send messages to the store you can use the `Store.send()` method. Store also sends a `send()` function down to view creation and rendering functions. This can be used to bind to event listeners and send messages up to the store.
+To send messages to the store you can use the `Store.send()` method. Store also sends a `send()` function down to rendering functions. This can be used to bind to event listeners and send messages up to the store.
 
 ```js
 store.send({type: 'notify', message: 'Hello world'})
