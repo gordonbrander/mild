@@ -361,28 +361,18 @@ export const insertElementAt = (parent, element, index) => {
 export const getId = object => object.id
 
 /**
- * An ID tagging function that doesn't do any tagging... it just returns the
- * action unchanged. This is the default tagging function for `item()`.
- * Note: we type state and send as `any` because JSDoc TS fails to infer
- * types of generic functions when used in default arguments. These any types
- * are inferred to be specific State and Action types at the call site.
- * @param {string} id - the id of the item
- * @returns {(action: *) => *}
- */
-const noTagging = id => action => action
-
-/**
  * A special view with extra functions for identifying and tagging actions
  * within dynamic lists.
  * @template {Node} Target
  * @template State
  * @template Action
  * @template TaggedAction
- * @typedef {View<Target, State, Action> & {id: (state: State) => string, tagging: (id: string) => (action: Action) => TaggedAction}} ItemView
+ * @typedef {View<Target, State, Action> & {id: (state: State) => string}} ItemView
  */
 
 /**
- * Make an ordinary view into an item view suitable for rendering in
+ * An item is a view with one additional function `id()` which can retreive
+ * an ID from the model. The ID is a stable identifier for this item within
  * dynamic lists.
  * @template {Node} Target
  * @template State
@@ -390,21 +380,20 @@ const noTagging = id => action => action
  * @template TaggedAction
  * @param {object} itemlike
  * @param {() => Target} itemlike.create - a creating function
- * @param {Rendering<Target, State, Action>} itemlike.render - a rendering function
- * @param {(state: State) => string} [itemlike.id] - get a unique ID from the state
- * @param {(id: string) => (action: Action) => TaggedAction} [itemlike.tagging] - an ID tagging function
+ * @param {Rendering<Target, State, Action>} itemlike.render - a rendering
+ *   function.
+ * @param {(state: State) => string} [itemlike.id] - get a unique ID for this
+ *   item from the state.
  * @returns {ItemView<Target, State, Action, TaggedAction>}
  */
 export const item = ({
   create,
   render,
   id=getId,
-  tagging=noTagging
 }) => ({
   create,
   render,
-  id,
-  tagging
+  id
 })
 
 // Symbol for marking ID on element
@@ -427,12 +416,17 @@ const _id = Symbol('id')
  *   into its new location. (This will reset focus and selection).
  * @template State
  * @template Action
- * @param {object} itemlike - an itemlike view, which may or may not have an `id()` function. Defaults to reading the id property of states.
+ * @param {object} itemlike - an itemlike view, which may or may not have
+ *   an `id()` function. Defaults to reading the id property of states.
  * @param {() => HTMLElement} itemlike.create - a function to create the element
- * @param {Rendering<HTMLElement, State, Action>} itemlike.render - a function to render the element
- * @param {(state: State) => string} [itemlike.id] - a function to get an ID from the state
+ * @param {Rendering<HTMLElement, State, Action>} itemlike.render - a function
+ *   to render the element
+ * @param {(state: State) => string} [itemlike.id] - a function to get an ID
+ *   from the state
  * @param {HTMLElement} parent - the parent element to render children to
- * @param {Array<State>} states - an array of states corresponding to children. Each state must have an ID, as defined by `itemlike.id()`. By default, this is `state.id`.
+ * @param {Array<State>} states - an array of states corresponding to children.
+ *   Each state must have an ID, as defined by `itemlike.id()`.
+ *   By default, this is `state.id`.
  * @param {Send<Action>} send - an address callback to send messages to
  */
 export const list = (
@@ -470,15 +464,13 @@ export const list = (
   for (var i = 0; i < states.length; i++) {
     let state = states[i]
     let child = childMap.get(itemView.id(state))
-    let tag = itemView.tagging(itemView.id(state))
-    let address = forward(send, tag)
     if (child == null) {
-      let child = create(itemView, state, address)
+      let child = create(itemView, state, send)
       child[_id] = itemView.id(state)
       insertElementAt(parent, child, i)
     } else {
       insertElementAt(parent, child, i)
-      itemView.render(child, state, address)
+      itemView.render(child, state, send)
     }
   }
 }

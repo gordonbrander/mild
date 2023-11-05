@@ -4,7 +4,7 @@ A tiny web framework with mild ambitions. One file. No dependencies. No build st
 
 I don't want to spend 3 hours fiddling with JavaScript bundlers and build tools. It's 2023. The web platform is robust, JavaScript is a pretty good dynamic language, and modules exist. I want to `<script type="module" src="main.js">`, and hit refresh to see changes.
 
-Mild is a little library for just building web apps. You can use it to build a small SPA, or to build deterministic stand-alone components for an island architecture.
+Mild is a little library for building web apps. You can use it to build a small SPA, or to build deterministic stand-alone components for an island architecture.
 
 ## Installing
 
@@ -94,7 +94,7 @@ const heading = view({
 `view()` takes these functions and returns an object with:
 
 - `view.create()` - creates the element
-- `view.render(element, state)` - renders it, but only if the state has changed
+- `view.render(element, state)` - renders element, but only if the state has changed
 
 ```js
 // Create an element. This runs both setup and render.
