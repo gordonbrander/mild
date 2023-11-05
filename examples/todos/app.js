@@ -3,10 +3,10 @@ import {
   next,
   view,
   list,
-  mounting,
   model,
   cid,
   $,
+  h,
   prop,
   text,
   unknown
@@ -41,41 +41,37 @@ action.filterActive = action.filter(Filter.active)
 action.filterCompleted = action.filter(Filter.completed)
 
 // Returns a function to create a style element
-export const css = style => {
-  let styleEl = document.createElement('style')
-  text(styleEl, style)
-  return styleEl
-}
+export const css = style => h('style', {}, style)
 
 const checkboxView = view({
-  tag: 'input',
+  create: () => h('input', {type: 'checkbox', className: 'todo-check'}),
   render: (el, isChecked, send) => {
-    prop(el, 'type', 'checkbox')
-    prop(el, 'className', 'todo-check')
     prop(el, 'checked', isChecked)
   }
 })
 
 const todoTitleView = view({
+  create: () => h('div', {className: 'todo-title'}),
   render: (el, title, send) => {
-    prop(el, 'className', 'todo-title')
     text(el, title)
   }
 })
 
 const todoView = view({
-  setup: (el, state, send) => {
-    el.className = 'todo-item'
+  create: () => h(
+    'div',
+    {className: 'todo-item'},
+    checkboxView.create(),
+    todoTitleView.create()
+  ),
+  render: (el, state, send) => {
+    el.classList.toggle('checked', state.isChecked)
+
     el.onchange = event => {
       if (event.target.classList.contains('todo-check')) {
         send(action.checkTodo(state.id, event.target.checked))
       }
     }
-    el.append(checkboxView.create(state.isChecked, send))
-    el.append(todoTitleView.create(state.title))
-  },
-  render: (el, state, send) => {
-    el.classList.toggle('checked', state.isChecked)
 
     let titleEl = $(el, '.todo-title')
     todoTitleView.render(titleEl, state.title, send)
@@ -86,83 +82,54 @@ const todoView = view({
 })
 
 const todoInputView = view({
-  tag: 'input',
-  setup: (input, state, send) => {
-    input.type = 'text'
-    input.className = 'todo-input'
-    input.placeholder = 'What needs to be done?'
+  create: () => h(
+    'input', {
+      type: 'text',
+      className: 'todo-input',
+      placeholder: 'What needs to be done?'
+    }
+  ),
+  render: (input, value, send) => {
+    prop(input, 'value', value)
     input.oninput = event => send(action.setInput(event.target.value))
     input.onkeyup = event => {
       if (event.key === 'Enter') {
         send(action.submitTodo(event.target.value))
       }
     }
-  },
-  render: (input, value, send) => {
-    prop(input, 'value', value)
   }
 })
 
-const filterButtonView = view({
-  tag: 'button',
-  setup: (element, state, send) => {
-    element.classList.add('button', 'todo-filter', state.className)
-    element.onclick = send
-  },
-  render: (element, state, send) => {
-    text(element, state.title)
-  }
-})
+const createFilterButton = (title, className) => h(
+  'button',
+  {className: `button todo-filter ${className}`},
+  title
+)
 
 const filterView = view({
-  setup: (element, state, send) => {
-    element.classList.add('todo-filters')
-    element.append(
-      filterButtonView.create(
-        {
-          title: 'All',
-          className: 'todo-filter-all'
-        },
-        event => send(action.filterAll)
-      )
-    )
-    element.append(
-      filterButtonView.create(
-        {
-          title: 'Active',
-          className: 'todo-filter-active'
-        },
-        event => send(action.filterActive)
-      )
-    )
-    element.append(
-      filterButtonView.create(
-        {
-          title: 'Completed',
-          className: 'todo-filter-completed'
-        },
-        event => send(action.filterCompleted)
-      )
-    )
-    element.append(
-      filterButtonView.create(
-        {
-          title: 'Clear Completed',
-          className: 'todo-filter-clear'
-        },
-        event => send(action.clearCompleted)
-      )
-    )
-  },
+  create: () => h(
+    'div',
+    {className: 'todo-filters'},
+    createFilterButton('All', 'todo-filter-all'),
+    createFilterButton('Active', 'todo-filter-active'),
+    createFilterButton('Completed', 'todo-filter-completed'),
+    createFilterButton('Clear Completed', 'todo-filter-clear')
+  ),
   render: (el, filter, send) => {
     let allEl = $(el, '.todo-filter-all')
     allEl.classList.toggle('active', filter === Filter.all)
+    allEl.onclick = event => send(action.filterAll)
 
     let activeEl = $(el, '.todo-filter-active')
     activeEl.classList.toggle('active', filter === Filter.active)
+    activeEl.onclick = event => send(action.filterActive)
 
     let completedEl = $(el, '.todo-filter-completed')
     completedEl.classList.toggle('active', filter === Filter.completed)
+    completedEl.onclick = event => send(action.filterCompleted)
+
+    let clearEl = $(el, '.todo-filter-clear')
+    clearEl.onclick = event => send(action.clearCompleted)
   }
 })
 
@@ -246,18 +213,19 @@ const appStyles = css(`
 `)
 
 const appView = view({
-  setup: (element, state, send) => {
-    element.classList.add('todo-app')
-
+  create: () => {
+    let element = h('div', {className: 'todo-app'})
     element.attachShadow({mode: 'open'})
-    element.shadowRoot.append(appStyles)
-    element.shadowRoot.append(todoInputView.create(state.input, send))
 
-    let listEl = document.createElement('div')
-    listEl.classList.add('todo-list')
+    element.shadowRoot.append(appStyles)
+    element.shadowRoot.append(todoInputView.create())
+
+    let listEl = h('div', {className: 'todo-list'})
     element.shadowRoot.append(listEl)
 
-    element.shadowRoot.append(filterView.create(state.filter, send))
+    element.shadowRoot.append(filterView.create())
+
+    return element
   },
   render: (element, state, send) => {
     let inputEl = $(element.shadowRoot, '.todo-input')
@@ -400,8 +368,8 @@ const update = (state, action) => {
 let body = $(document, 'body')
 
 let store = new Store({
-  target: body,
+  mount: body,
   init,
   update,
-  render: mounting(appView)
+  ...appView
 })
