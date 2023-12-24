@@ -1,52 +1,57 @@
 import {
-  Store,
+  useStore,
   next,
-  view,
-  $,
+  unknown,
+  render,
   h
 } from '../../mild.js'
 
 // All state changes are expressed in terms of actions sent to a store
-const action = {}
-action.increment = {type: 'increment'}
+const msg = {}
+msg.increment = {type: 'increment'}
 
 // A view describes how to create and update (render) an element.
-const app = view({
-  create: () => h(
+const viewApp = () => {
+  const containerEl = h(
     'div',
     {className: 'container'},
-    h('div', {className: 'text'}),
-    h('button', {className: 'button'}, 'Click to increment')
-  ),
-  render: (el, state, send) => {
-    let buttonEl = $(el, '.button')
-    buttonEl.onclick = event => send(action.increment)
+  )
+  const textEl = h('div', {className: 'text'})
+  containerEl.append(textEl)
 
-    let textEl = $(el, '.text')
+  const buttonEl = h('button', {className: 'button'}, 'Click to increment')
+  containerEl.append(buttonEl)
+
+  containerEl.render = (state, send) => {
+    buttonEl.onclick = () => send(msg.increment)
     textEl.textContent = state.count
   }
-})
 
-app.model = ({count}) => ({count})
+  return containerEl
+}
+
+const app = ({count}) => ({count})
 
 // Create initial state transaction
-app.init = () => next(app.model({count: 0}))
+const init = () => next(app({count: 0}))
 
 // Given previous state and an action, creates new state transactions.
-app.update = (state, action) => {
-  switch (action.type) {
+const update = (state, msg) => {
+  switch (msg.type) {
   case 'increment':
-    return next(app.model({...state, count: state.count + 1}))
+    return next(app({...state, count: state.count + 1}))
   default:
-    console.warn("Unhandled action type", action)
-    return next(state)
+    return unknown(state, msg)
   }
 }
 
-let body = $(document, 'body')
+const appEl = viewApp()
+document.body.append(appEl)
 
 // Initialize store
-let store = new Store({
-  mount: body,
-  ...app
+const send = useStore({
+  debug: true,
+  init,
+  update,
+  render: (state, send) => render(appEl, state, send)
 })
