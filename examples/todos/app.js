@@ -1,11 +1,10 @@
 import {
-  Store,
+  useStore,
   next,
-  view,
+  render,
   list,
   model,
   cid,
-  $,
   h,
   prop,
   text,
@@ -43,62 +42,76 @@ action.filterCompleted = action.filter(Filter.completed)
 // Returns a function to create a style element
 export const css = style => h('style', {}, style)
 
-const checkboxView = view({
-  create: () => h('input', {type: 'checkbox', className: 'todo-check'}),
-  render: (el, isChecked, send) => {
-    prop(el, 'checked', isChecked)
-  }
-})
+const checkboxView = () => {
+  const inputEl = h('input', {type: 'checkbox', className: 'todo-check'})
 
-const todoTitleView = view({
-  create: () => h('div', {className: 'todo-title'}),
-  render: (el, title, send) => {
-    text(el, title)
+  inputEl.render = (isChecked, send) => {
+    prop(inputEl, 'checked', isChecked)
   }
-})
 
-const todoView = view({
-  create: () => h(
+  return inputEl
+}
+
+const todoTitleView = () => {
+  const titleEl = h('div', {className: 'todo-title'})
+
+  titleEl.render = (title, send) => {
+    text(titleEl, title)
+  }
+
+  return titleEl
+}
+
+const todoView = () => {
+  const todoEl = h(
     'div',
     {className: 'todo-item'},
-    checkboxView.create(),
-    todoTitleView.create()
-  ),
-  render: (el, state, send) => {
-    el.classList.toggle('checked', state.isChecked)
+  )
 
-    el.onchange = event => {
+  const checkboxEl = checkboxView()
+  todoEl.append(checkboxEl)
+
+  const titleEl = todoTitleView()
+  todoEl.append(titleEl)
+
+  todoEl.render = ({id, title, isChecked}, send) => {
+    todoEl.classList.toggle('checked', isChecked)
+
+    todoEl.onchange = event => {
       if (event.target.classList.contains('todo-check')) {
-        send(action.checkTodo(state.id, event.target.checked))
+        send(action.checkTodo(id, event.target.checked))
       }
     }
 
-    let titleEl = $(el, '.todo-title')
-    todoTitleView.render(titleEl, state.title, send)
-
-    let checkboxEl = $(el, '.todo-check')
-    checkboxView.render(checkboxEl, state.isChecked, send)
+    render(titleEl, title, send)
+    render(checkboxEl, isChecked, send)
   }
-})
 
-const todoInputView = view({
-  create: () => h(
-    'input', {
+  return todoEl
+}
+
+const todoInputView = () => {
+  const inputEl = h(
+    'input',
+    {
       type: 'text',
       className: 'todo-input',
       placeholder: 'What needs to be done?'
     }
-  ),
-  render: (input, value, send) => {
-    prop(input, 'value', value)
-    input.oninput = event => send(action.setInput(event.target.value))
-    input.onkeyup = event => {
+  )
+
+  inputEl.render = (value, send) => {
+    prop(inputEl, 'value', value)
+    inputEl.oninput = event => send(action.setInput(event.target.value))
+    inputEl.onkeyup = event => {
       if (event.key === 'Enter') {
         send(action.submitTodo(event.target.value))
       }
     }
   }
-})
+
+  return inputEl
+}
 
 const createFilterButton = (title, className) => h(
   'button',
@@ -106,32 +119,38 @@ const createFilterButton = (title, className) => h(
   title
 )
 
-const filterView = view({
-  create: () => h(
+const filterView = () => {
+  const filtersEl = h(
     'div',
     {className: 'todo-filters'},
-    createFilterButton('All', 'todo-filter-all'),
-    createFilterButton('Active', 'todo-filter-active'),
-    createFilterButton('Completed', 'todo-filter-completed'),
-    createFilterButton('Clear Completed', 'todo-filter-clear')
-  ),
-  render: (el, filter, send) => {
-    let allEl = $(el, '.todo-filter-all')
+  )
+  const allEl = createFilterButton('All', 'todo-filter-all')
+  filtersEl.append(allEl)
+
+  const activeEl = createFilterButton('Active', 'todo-filter-active')
+  filtersEl.append(activeEl)
+
+  const completedEl = createFilterButton('Completed', 'todo-filter-completed')
+  filtersEl.append(completedEl)
+
+  const clearEl = createFilterButton('Clear Completed', 'todo-filter-clear')
+  filtersEl.append(clearEl)
+
+  filtersEl.render = (filter, send) => {
     allEl.classList.toggle('active', filter === Filter.all)
     allEl.onclick = event => send(action.filterAll)
 
-    let activeEl = $(el, '.todo-filter-active')
     activeEl.classList.toggle('active', filter === Filter.active)
     activeEl.onclick = event => send(action.filterActive)
 
-    let completedEl = $(el, '.todo-filter-completed')
     completedEl.classList.toggle('active', filter === Filter.completed)
     completedEl.onclick = event => send(action.filterCompleted)
 
-    let clearEl = $(el, '.todo-filter-clear')
     clearEl.onclick = event => send(action.clearCompleted)
   }
-})
+
+  return filtersEl
+}
 
 const appStyles = css(`
 :host {
@@ -212,26 +231,24 @@ const appStyles = css(`
 }
 `)
 
-const appView = view({
-  create: () => {
-    let element = h('div', {className: 'todo-app'})
-    element.attachShadow({mode: 'open'})
+const appView = () => {
+  const element = h('div', {className: 'todo-app'})
+  element.attachShadow({mode: 'open'})
 
-    element.shadowRoot.append(appStyles)
-    element.shadowRoot.append(todoInputView.create())
+  element.shadowRoot.append(appStyles)
 
-    let listEl = h('div', {className: 'todo-list'})
-    element.shadowRoot.append(listEl)
+  const inputEl = todoInputView()
+  element.shadowRoot.append(inputEl)
 
-    element.shadowRoot.append(filterView.create())
+  const listEl = h('div', {className: 'todo-list'})
+  element.shadowRoot.append(listEl)
+  const renderListEl = list(todoView)  
 
-    return element
-  },
-  render: (element, state, send) => {
-    let inputEl = $(element.shadowRoot, '.todo-input')
-    todoInputView.render(inputEl, state.input, send)
+  const filterEl = filterView()
+  element.shadowRoot.append(filterEl)
 
-    let listEl = $(element.shadowRoot, '.todo-list')
+  element.render = (state, send) => {
+    render(inputEl, state.input, send)
 
     listEl.classList.toggle(
       'filter-all',
@@ -246,12 +263,13 @@ const appView = view({
       state.filter === Filter.completed
     )
 
-    list(todoView, listEl, state.items, send)
+    renderListEl(listEl, state.items, send)
 
-    let filterEl = $(element.shadowRoot, '.todo-filters')
-    filterView.render(filterEl, state.filter, send)
+    render(filterEl, state.filter, send)
   }
-})
+
+  return element
+}
 
 const todoModel = model(({
   id=cid(),
@@ -272,15 +290,6 @@ const appModel = model(({
   input,
   filter
 }))
-
-const init = () => {
-  const items = []
-  for (var i = 0; i < 5; i++) {
-    items.push(todoModel({title: `Item ${i}`}))
-  }
-  let model = appModel({items})
-  return next(model)
-}
 
 const insertAtIndex = (array, i, item) => {
   array.splice(i, 0, item);
@@ -365,11 +374,21 @@ const update = (state, action) => {
   }
 }
 
-let body = $(document, 'body')
+const init = () => {
+  const items = []
+  for (var i = 0; i < 5; i++) {
+    items.push(todoModel({title: `Item ${i}`}))
+  }
+  let model = appModel({items})
+  return next(model)
+}
 
-let store = new Store({
-  mount: body,
+const appEl = appView()
+document.body.append(appEl)
+
+const send = useStore({
+  debug: true,
   init,
   update,
-  ...appView
+  render: (state, send) => render(appEl, state, send)
 })
