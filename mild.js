@@ -113,17 +113,17 @@ export const next = (state, effects=[]) => ({state, effects})
  * Create a store of state that calls render whenever state changes.
  * @template State
  * @template Msg
- * @param {object} config 
+ * @param {object} config
+ * @param {HTMLElement} config.target - the target to render to
  * @param {() => Transaction<State, Msg>} config.init
  * @param {(state: State, msg: Msg) => Transaction<State, Msg>} config.update
- * @param {(state: State, send: (msg: Msg) => void) => void} config.render
  * @param {boolean} config.debug - log debug messages?
  * @returns {(msg: Msg) => void} send function
  */
 export const useStore = ({
+  target,
   init,
   update,
-  render,
   debug=false
 }) => {
   const {state: initial, effects} = init()
@@ -140,7 +140,7 @@ export const useStore = ({
       if (debug) {
         console.debug('store.state', next.state)
       }
-      render(state, send)
+      render(target, state, send)
     }
   }
 
@@ -153,7 +153,7 @@ export const useStore = ({
 
   const runEffects = effects => effects.forEach(runEffect)
 
-  render(state, send)
+  render(target, state, send)
 
   return send
 }
