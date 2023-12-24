@@ -137,7 +137,10 @@ Mild has a store that is inspired by the Elm App Architecture.
 - All state updates are defined through an update function that produces the next state, plus any asynchronous side-effects, such as HTTP requests.
 
 ```js
-const send = useStore({init, update, render})
+const appEl = viewApp()
+document.body.append(appEl)
+
+const send = useStore({init, update, target: appEl})
 
 send({type: 'notify', message: 'Hello world'})
 ```
@@ -146,7 +149,7 @@ Store takes a configuration object with the following keys:
 
 - `init()` - a function that returns an initial state transaction
 - `update(state, action)` - a function that receives the current state, and an action, and returns a transaction for the next state
-- `render(state, send)` - a rendering function to be called whenever the state has changed
+- `target` - an element to render to (must implement a `render(state, send)` method)
 
 To send messages to the store you can use the returned `send(msg)` method. Store also sends a `send()` function down to the rendering functions. This can be used to bind to event listeners and send messages up to the store.
 

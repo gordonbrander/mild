@@ -53,5 +53,5 @@ const send = useStore({
   debug: true,
   init,
   update,
-  render: (state, send) => render(appEl, state, send)
+  target: appEl
 })
