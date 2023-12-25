@@ -1,10 +1,7 @@
 import {test, Runner, assert, fail, wait} from './test.js'
 import {
-  rendering,
   insertElementAt,
   list,
-  view,
-  cloning,
   cid,
   next,
   prop
@@ -20,76 +17,6 @@ const removeAtIndex = (array, i) => {
 }
 
 let runner = new Runner()
-
-runner.suite('cloning', async () => {
-  const create = cloning(() => {
-    let element = document.createElement('input')
-    element.type = 'text'
-    element.className = 'input'
-    return element
-  })
-
-  await test('it returns a new node', () => {
-    let a = create()
-    let b = create()
-
-    assert(a !== b && a.isEqualNode(b), "node is cloned")
-  })
-})
-
-runner.suite('rendering', async () => {
-  await test('it only runs write when state has changed', async () => {
-    let renderText = rendering({
-      render: (el, text, send) => {
-        el.innerHTML = ''
-        el.append(text)
-      }
-    })
-
-    let observer = new MutationObserver((mutationList, observer) => {
-      let added = new Set(
-        mutationList.flatMap(mutation => Array.from(mutation.addedNodes))
-      )
-      assert(
-        added.size === 2,
-        'It only runs when state has changed'
-      )
-    })
-
-    let element = document.createElement('div')
-    observer.observe(element, {childList: true})
-
-    renderText(element, "Hello world")
-    renderText(element, "Hello world")
-    renderText(element, "Hello world")
-    renderText(element, "Hello me")
-
-    await wait(1)
-
-    observer.disconnect()
-  })
-
-  await test('it only runs setup once', async () => {
-    let count = 0
-
-    let render = rendering({
-      setup: (el, state, _) => {
-        count = count + 1
-      },
-      render: (el, state, _) => {}
-    })
-
-    let element = document.createElement('div')
-    render(element, {})
-    render(element, {})
-    render(element, {})
-
-    assert(
-      count === 1,
-      'It only runs setup once'
-    )
-  })
-})
 
 runner.suite('insertElementAt', async () => {
   const createParent = () => {
@@ -142,16 +69,16 @@ runner.suite('insertElementAt', async () => {
 runner.suite('list', async () => {
   const send = () => {}
 
-  const item = view({
-    create: () => {
-      let item = document.createElement('li')
-      item.className = 'item'
-      return item
-    },
-    render: (item, state, send) => {
+  const item = () => {
+    let item = document.createElement('li')
+    item.className = 'item'
+    item.render = (state, send) => {
       item.innerText = state.text
     }
-  })
+    return item
+  }
+
+  const renderList = list(item)
 
   const model = ({text}) => ({id: cid(), text})
 
@@ -174,27 +101,27 @@ runner.suite('list', async () => {
   await test('it appends children on empty element', () => {
     let states = init(10)
     let parent = createParent()
-    list(item, parent, states, send)
+    renderList(parent, states, send)
     assert(parent.children.length === 10, "appends children")
   })
 
   await test('it removes elements', () => {
     let states = init(10)
     let parent = createParent()
-    list(item, parent, states)
+    renderList(parent, states)
 
     let copy = [...states]
     copy.pop()
     copy.pop()
 
-    list(item, parent, copy, send)
+    renderList(parent, copy, send)
     assert(parent.children.length === 8, "removes children")
   })
 
   await test('it supports inserting and removing elements anywhere', () => {
     let states = init(10)
     let parent = createParent()
-    list(item, parent, states, send)
+    renderList(parent, states, send)
 
     let previousChildren = Array.from(parent.children)
 
@@ -203,7 +130,7 @@ runner.suite('list', async () => {
     insertAtIndex(copy, 7, model({text: 'Added item'}))
     removeAtIndex(copy, 9)
 
-    list(item, parent, copy, send)
+    renderList(parent, copy, send)
     assert(parent.children.length === 11, "correct number of children")
     assert(parent.children[5] === previousChildren[4], "Other elements don't get replaced")
   })
@@ -211,7 +138,7 @@ runner.suite('list', async () => {
   await test('it avoids reparenting elements that remain in same relative order', async () => {
     let states = init(5)
     let parent = createParent()
-    list(item, parent, states, send)
+    renderList(parent, states, send)
 
     let copy = [...states]
     removeAtIndex(copy, 0)
@@ -270,7 +197,7 @@ runner.suite('list', async () => {
     })
 
     observer.observe(parent, {childList: true})
-    list(item, parent, copy, send)
+    renderList(parent, copy, send)
 
     assert(parent.children.length === 9, "list is correct length after rendering")
 
@@ -282,7 +209,7 @@ runner.suite('list', async () => {
   await test('it reparents elements that change order', async () => {
     let states = init(3)
     let parent = createParent()
-    list(item, parent, states, send)
+    renderList(parent, states, send)
 
     let copy = [...states]
     let last = copy.pop()
